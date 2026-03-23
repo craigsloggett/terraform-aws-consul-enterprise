@@ -7,10 +7,10 @@ A Terraform module for deploying HashiCorp Consul Enterprise on AWS.
 ### main.tf
 ```hcl
 # tflint-ignore: terraform_required_version
-module "consul_enterprise" {
-  source = "craigsloggett/consul-enterprise/aws"
-  # version = "x.x.x"
-}
+#module "consul_enterprise" {
+#  #source = "craigsloggett/consul-enterprise/aws"
+#  # version = "x.x.x"
+#}
 ```
 
 ## Requirements
