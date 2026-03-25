@@ -1,0 +1,297 @@
+#!/bin/sh
+# Disable false positives caused by shellcheck not understanding Terraform's template syntax.
+# shellcheck disable=SC2034,SC2086,SC2154,SC2157,SC2170,SC2193
+
+log() {
+  printf '%b%s %b%s%b %s\n' \
+    "$${c1}" "$${3:-->}" "$${c3}$${2:+$c2}" "$1" "$${c3}" "$2" >&2
+}
+
+wait_for_network() {
+  log "Checking network connectivity."
+  attempts=0
+  max_attempts=60
+  while ! ping -c 1 -W 1 8.8.8.8 >/dev/null 2>&1; do
+    log "  Waiting for the network to be available..."
+    attempts=$((attempts + 1))
+    if [ "$${attempts}" -ge "$${max_attempts}" ]; then
+      log "ERROR: Network not available after $${max_attempts} attempts."
+      exit 1
+    fi
+    sleep 2
+  done
+}
+
+install_packages() {
+  log "  Installing the following packages: $*"
+  export DEBIAN_FRONTEND=noninteractive
+  apt-get -yq update >/dev/null
+  apt-get -yq install "$@" >/dev/null
+}
+
+find_ebs_device() {
+  log "  Resolving the NVMe device for the ${ebs_device_name} EBS attachment."
+
+  device=""
+  attempts=0
+  max_attempts=30
+
+  # Re-enable globbing within this block; -f is inherited from main().
+  set +f
+  while [ -z "$${device}" ]; do
+    for dev in /dev/nvme*n1; do
+      [ -b "$${dev}" ] || continue
+      block_dev=$(ebsnvme-id -b "$${dev}" 2>/dev/null)
+      if [ "$${block_dev}" = "${ebs_device_name}" ]; then
+        device="$${dev}"
+        break
+      fi
+    done
+
+    if [ -z "$${device}" ]; then
+      attempts=$((attempts + 1))
+      if [ "$${attempts}" -ge "$${max_attempts}" ]; then
+        log "ERROR: EBS volume not found after $${max_attempts} attempts."
+        exit 1
+      fi
+      sleep 2
+    fi
+  done
+  set -f
+
+  printf '%s\n' "$${device}"
+}
+
+format_and_mount_ebs() {
+  log "  Formatting and mounting the EBS volume for Raft storage."
+
+  if ! blkid "$1" >/dev/null 2>&1; then
+    mkfs.ext4 "$1" >/dev/null
+  fi
+
+  mkdir -p /opt/consul/data
+  mount "$1" /opt/consul/data
+
+  if ! grep -q '/opt/consul/data' /etc/fstab; then
+    echo "$1 /opt/consul/data ext4 defaults,nofail 0 2" >>/etc/fstab
+  fi
+}
+
+install_consul() {
+  log "  Installing Consul Enterprise ${consul_version}."
+
+  curl -fsSL https://apt.releases.hashicorp.com/gpg |
+    gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+
+  echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
+    >/etc/apt/sources.list.d/hashicorp.list
+
+  apt-get -yq update >/dev/null
+  apt-get -yq install consul-enterprise=${consul_version} >/dev/null
+}
+
+get_secret() {
+  log "  Grabbing AWS Secrets Manager secret value for:" "$1"
+
+  attempts=0
+  max_attempts=5
+
+  while true; do
+    if result=$(aws secretsmanager get-secret-value \
+      --region "${region}" \
+      --secret-id "$1" \
+      --query SecretString --output text 2>/dev/null); then
+      printf '%s' "$${result}"
+      return 0
+    fi
+    attempts=$((attempts + 1))
+    if [ "$${attempts}" -ge "$${max_attempts}" ]; then
+      log "ERROR: Failed to retrieve secret after $${max_attempts} attempts." "$1"
+      return 1
+    fi
+    sleep 5
+  done
+}
+
+get_ec2_private_ip_address() {
+  log "  Grabbing the EC2 instance metadata token."
+
+  token=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" \
+    -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
+
+  log "  Grabbing the EC2 instance private IPv4 address."
+
+  curl -s -H "X-aws-ec2-metadata-token: $${token}" \
+    http://169.254.169.254/latest/meta-data/local-ipv4
+}
+
+configure_snapshot_agent() {
+  log "Configuring the Consul snapshot agent."
+
+  # Write the snapshot agent configuration.
+  log "  Writing /etc/consul.d/snapshot-agent.hcl."
+  cat >/etc/consul.d/snapshot-agent.hcl <<EOF
+snapshot_agent {
+  interval = "${consul_snapshot_interval}"
+  retain   = ${consul_snapshot_retain}
+
+  aws_storage {
+    s3_bucket     = "${consul_snapshot_bucket}"
+    s3_region     = "${region}"
+    s3_key_prefix = "snapshots/"
+  }
+}
+EOF
+  chown consul:consul /etc/consul.d/snapshot-agent.hcl
+  chmod 640 /etc/consul.d/snapshot-agent.hcl
+
+  # Write the token placeholder for the snapshot agent.
+  log "  Writing /etc/consul.d/snapshot-token placeholder."
+  printf 'CONSUL_HTTP_TOKEN=\n' >/etc/consul.d/snapshot-token
+  chown consul:consul /etc/consul.d/snapshot-token
+  chmod 600 /etc/consul.d/snapshot-token
+
+  # Write the systemd unit for the snapshot agent.
+  log "  Writing /etc/systemd/system/consul-snapshot-agent.service."
+  cat >/etc/systemd/system/consul-snapshot-agent.service <<'UNIT'
+[Unit]
+Description=Consul Snapshot Agent
+Requires=consul.service
+After=consul.service
+
+[Service]
+User=consul
+Group=consul
+Environment=CONSUL_HTTP_ADDR=https://127.0.0.1:8501
+Environment=CONSUL_CACERT=/opt/consul/tls/ca.crt
+EnvironmentFile=/etc/consul.d/snapshot-token
+ExecStart=/usr/bin/consul snapshot agent /etc/consul.d/snapshot-agent.hcl
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+  systemctl daemon-reload
+}
+
+main() {
+  # Globally disable globbing and enable exit-on-error.
+  set -ef
+
+  # Colors are automatically disabled if output is not a terminal.
+  ! [ -t 2 ] || {
+    c1='\033[1;33m'
+    c2='\033[1;34m'
+    c3='\033[m'
+  }
+
+  # Wait for the network to be available.
+  wait_for_network
+
+  # Install dependencies.
+  log "Setting up system packages."
+  install_packages awscli jq unzip gnupg lsb-release nvme-cli amazon-ec2-utils
+
+  # Format and mount the EBS volume for Raft storage.
+  log "Setting up EBS storage."
+  device="$(find_ebs_device)"
+  format_and_mount_ebs "$${device}"
+
+  # Install Consul Enterprise.
+  log "Setting up Consul Enterprise."
+  install_consul
+
+  # Retrieve secrets from AWS Secrets Manager.
+  log "Retrieving secrets from AWS Secrets Manager."
+  consul_license=$(get_secret "${consul_license_secret_arn}")
+  ca_cert=$(get_secret "${consul_ca_cert_secret_arn}")
+  server_cert=$(get_secret "${consul_server_cert_secret_arn}")
+  server_key=$(get_secret "${consul_server_key_secret_arn}")
+  gossip_key=$(get_secret "${consul_gossip_key_secret_arn}")
+
+  # Write TLS certificates.
+  log "Writing TLS certificates."
+  mkdir -p /opt/consul/tls
+  printf '%s\n' "$${ca_cert}" >/opt/consul/tls/ca.crt
+  printf '%s\n' "$${server_cert}" >/opt/consul/tls/server.crt
+  printf '%s\n' "$${server_key}" >/opt/consul/tls/server.key
+  chmod 640 /opt/consul/tls/ca.crt /opt/consul/tls/server.crt /opt/consul/tls/server.key
+  chown consul:consul /opt/consul/tls/ca.crt /opt/consul/tls/server.crt /opt/consul/tls/server.key
+
+  # Write Consul license.
+  log "Writing the Consul license."
+  printf '%s\n' "$${consul_license}" >/opt/consul/consul.hclic
+  chmod 640 /opt/consul/consul.hclic
+  chown consul:consul /opt/consul/consul.hclic
+
+  # Write Consul configuration.
+  log "Generating the /etc/consul.d/consul.hcl configuration file."
+  cat >/etc/consul.d/consul.hcl <<EOF
+datacenter       = "${consul_datacenter}"
+data_dir         = "/opt/consul/data"
+server           = true
+bootstrap_expect = 3
+license_path     = "/opt/consul/consul.hclic"
+encrypt          = "$${gossip_key}"
+node_name        = "${node_id}"
+
+ui_config {
+  enabled = true
+}
+
+addresses {
+  https = "0.0.0.0"
+}
+
+ports {
+  http  = -1
+  https = 8501
+}
+
+tls {
+  defaults {
+    ca_file         = "/opt/consul/tls/ca.crt"
+    cert_file       = "/opt/consul/tls/server.crt"
+    key_file        = "/opt/consul/tls/server.key"
+    verify_incoming = true
+    verify_outgoing = true
+  }
+  internal_rpc {
+    verify_server_hostname = true
+  }
+}
+
+auto_encrypt {
+  allow_tls = true
+}
+
+acl {
+  enabled                  = true
+  default_policy           = "deny"
+  enable_token_persistence = true
+}
+
+retry_join = ["provider=aws tag_key=${cluster_tag_key} tag_value=${cluster_tag_value}"]
+
+performance {
+  raft_multiplier = 1
+}
+EOF
+
+  chown consul:consul /etc/consul.d/consul.hcl
+  chmod 640 /etc/consul.d/consul.hcl
+
+  # Set permissions on data directory.
+  chown -R consul:consul /opt/consul/data
+
+  # Configure the snapshot agent (not started until operator provides a token).
+  configure_snapshot_agent
+
+  # Enable and start the Consul service.
+  log "Enabling the Consul service."
+  systemctl enable --now consul
+}
+
+main "$@"

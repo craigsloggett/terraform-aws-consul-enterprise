@@ -1,0 +1,3 @@
+project_name        = "consul-enterprise"
+consul_license      = "your-consul-enterprise-license-here"
+ec2_key_pair_name   = "my-key-pair"
