@@ -40,15 +40,6 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "consul_snapshots"
   }
 }
 
-resource "aws_s3_bucket_public_access_block" "consul_snapshots" {
-  bucket = aws_s3_bucket.consul_snapshots.id
-
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
-}
-
 data "aws_iam_policy_document" "consul_snapshots" {
   statement {
     sid     = "DenyInsecureTransport"
@@ -75,4 +66,13 @@ data "aws_iam_policy_document" "consul_snapshots" {
 resource "aws_s3_bucket_policy" "consul_snapshots" {
   bucket = aws_s3_bucket.consul_snapshots.id
   policy = data.aws_iam_policy_document.consul_snapshots.json
+}
+
+resource "aws_s3_bucket_public_access_block" "consul_snapshots" {
+  bucket = aws_s3_bucket.consul_snapshots.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
