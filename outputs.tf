@@ -28,6 +28,11 @@ output "consul_target_group_arn" {
   value       = aws_lb_target_group.consul.arn
 }
 
+output "ec2_ami_name" {
+  description = "Name of the AMI used for EC2 instances."
+  value       = var.ec2_ami.name
+}
+
 output "consul_ca_cert" {
   description = "CA certificate for trusting the Consul TLS chain."
   value       = tls_self_signed_cert.ca.cert_pem

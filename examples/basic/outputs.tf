@@ -13,6 +13,16 @@ output "consul_private_ips" {
   value       = module.consul.consul_private_ips
 }
 
+output "consul_snapshot_bucket" {
+  description = "S3 bucket for Consul snapshots."
+  value       = module.consul.consul_snapshot_bucket
+}
+
+output "ec2_ami_name" {
+  description = "Name of the AMI used for EC2 instances."
+  value       = module.consul.ec2_ami_name
+}
+
 output "consul_target_group_arn" {
   description = "ARN of the Consul NLB target group."
   value       = module.consul.consul_target_group_arn
