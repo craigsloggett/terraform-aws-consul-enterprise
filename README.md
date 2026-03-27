@@ -1,4 +1,4 @@
-# terraform-aws-consul-enterprise
+# HashiCorp Consul Enterprise Terraform Module
 A Terraform module for deploying HashiCorp Consul Enterprise on AWS.
 
 <!-- BEGIN_TF_DOCS -->
