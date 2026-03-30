@@ -35,4 +35,3 @@ terraform.rc
 
 # Sensitive initialization output
 consul-init.json
-consul-bootstrap.json
