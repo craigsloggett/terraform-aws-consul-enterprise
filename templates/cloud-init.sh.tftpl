@@ -165,7 +165,7 @@ Group=consul
 Environment=CONSUL_HTTP_ADDR=https://127.0.0.1:8501
 Environment=CONSUL_CACERT=/opt/consul/tls/ca.crt
 EnvironmentFile=/etc/consul.d/snapshot-token
-ExecStart=/usr/bin/consul snapshot agent /etc/consul.d/snapshot-agent.hcl
+ExecStart=/usr/bin/consul snapshot agent -config-file=/etc/consul.d/snapshot-agent.hcl
 Restart=on-failure
 RestartSec=30
 
