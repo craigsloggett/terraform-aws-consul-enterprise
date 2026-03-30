@@ -128,22 +128,23 @@ get_ec2_private_ip_address() {
 configure_snapshot_agent() {
   log "Configuring the Consul snapshot agent."
 
-  # Write the snapshot agent configuration.
-  log "  Writing /etc/consul.d/snapshot-agent.hcl."
-  cat >/etc/consul.d/snapshot-agent.hcl <<EOF
-snapshot_agent {
-  interval = "${consul_snapshot_interval}"
-  retain   = ${consul_snapshot_retain}
-
-  aws_storage {
-    s3_bucket     = "${consul_snapshot_bucket}"
-    s3_region     = "${region}"
-    s3_key_prefix = "snapshots/"
+  # Write the snapshot agent configuration (must be JSON, not HCL).
+  log "  Writing /etc/consul.d/snapshot-agent.json."
+  cat >/etc/consul.d/snapshot-agent.json <<EOF
+{
+  "snapshot_agent": {
+    "interval": "${consul_snapshot_interval}",
+    "retain": ${consul_snapshot_retain},
+    "aws_storage": {
+      "s3_bucket": "${consul_snapshot_bucket}",
+      "s3_region": "${region}",
+      "s3_key_prefix": "snapshots/"
+    }
   }
 }
 EOF
-  chown consul:consul /etc/consul.d/snapshot-agent.hcl
-  chmod 640 /etc/consul.d/snapshot-agent.hcl
+  chown consul:consul /etc/consul.d/snapshot-agent.json
+  chmod 640 /etc/consul.d/snapshot-agent.json
 
   # Write the token placeholder for the snapshot agent.
   log "  Writing /etc/consul.d/snapshot-token placeholder."
@@ -165,7 +166,7 @@ Group=consul
 Environment=CONSUL_HTTP_ADDR=https://127.0.0.1:8501
 Environment=CONSUL_CACERT=/opt/consul/tls/ca.crt
 EnvironmentFile=/etc/consul.d/snapshot-token
-ExecStart=/usr/bin/consul snapshot agent -config-file=/etc/consul.d/snapshot-agent.hcl
+ExecStart=/usr/bin/consul snapshot agent -config-file=/etc/consul.d/snapshot-agent.json
 Restart=on-failure
 RestartSec=30
 
