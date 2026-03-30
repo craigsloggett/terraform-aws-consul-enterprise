@@ -14,14 +14,13 @@ resource "aws_lb" "consul" {
 resource "aws_lb_target_group" "consul" {
   name_prefix = "consl-"
   port        = 8501
-  protocol    = "TCP"
+  protocol    = "TLS"
   vpc_id      = local.vpc.id
 
   health_check {
     enabled             = true
-    protocol            = "HTTPS"
+    protocol            = "TCP"
     port                = "8501"
-    path                = "/v1/status/leader"
     healthy_threshold   = 3
     unhealthy_threshold = 3
     interval            = 30
@@ -37,7 +36,8 @@ resource "aws_lb_target_group" "consul" {
 resource "aws_lb_listener" "consul" {
   load_balancer_arn = aws_lb.consul.arn
   port              = 8501
-  protocol          = "TCP"
+  protocol          = "TLS"
+  certificate_arn   = aws_acm_certificate_validation.consul.certificate_arn
 
   default_action {
     type             = "forward"
