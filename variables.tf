@@ -125,8 +125,8 @@ variable "consul_subdomain" {
 
 variable "consul_package_version" {
   type        = string
-  description = "Consul Enterprise apt package version to install (e.g., 1.20.3+ent-1)."
-  default     = "1.20.3+ent-1"
+  description = "Consul Enterprise apt package version to install (e.g., 1.22.6+ent-1)."
+  default     = "1.22.6+ent-1"
 
   validation {
     condition     = can(regex("^\\d+\\.\\d+\\.\\d+\\+ent-\\d+$", var.consul_package_version))

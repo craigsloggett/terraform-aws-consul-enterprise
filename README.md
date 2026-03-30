@@ -66,7 +66,7 @@ module "consul" {
 | <a name="input_consul_ebs_volume_size"></a> [consul\_ebs\_volume\_size](#input\_consul\_ebs\_volume\_size) | Size in GiB of the EBS volume for Consul Raft storage. | `number` | `100` | no |
 | <a name="input_consul_instance_type"></a> [consul\_instance\_type](#input\_consul\_instance\_type) | EC2 instance type for Consul nodes. | `string` | `"m5.large"` | no |
 | <a name="input_consul_license"></a> [consul\_license](#input\_consul\_license) | Consul Enterprise license string. | `string` | n/a | yes |
-| <a name="input_consul_package_version"></a> [consul\_package\_version](#input\_consul\_package\_version) | Consul Enterprise apt package version to install (e.g., 1.20.3+ent-1). | `string` | `"1.20.3+ent-1"` | no |
+| <a name="input_consul_package_version"></a> [consul\_package\_version](#input\_consul\_package\_version) | Consul Enterprise apt package version to install (e.g., 1.22.6+ent-1). | `string` | `"1.22.6+ent-1"` | no |
 | <a name="input_consul_snapshot_interval"></a> [consul\_snapshot\_interval](#input\_consul\_snapshot\_interval) | Interval between automated Raft snapshots (e.g., 1h, 30m, 24h). | `string` | `"1h"` | no |
 | <a name="input_consul_snapshot_retain"></a> [consul\_snapshot\_retain](#input\_consul\_snapshot\_retain) | Number of automated Raft snapshots to retain in S3. | `number` | `72` | no |
 | <a name="input_consul_subdomain"></a> [consul\_subdomain](#input\_consul\_subdomain) | Subdomain for the Consul DNS record. | `string` | `"consul"` | no |
