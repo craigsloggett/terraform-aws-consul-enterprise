@@ -38,3 +38,41 @@ output "consul_ca_cert" {
   value       = tls_self_signed_cert.ca.cert_pem
   sensitive   = true
 }
+
+output "security_group" {
+  description = "Consul cluster security group."
+  value       = aws_security_group.consul
+}
+
+output "ca_cert_secret" {
+  description = "Secrets Manager secret containing the Consul CA certificate."
+  value       = aws_secretsmanager_secret.consul_ca_cert
+}
+
+output "gossip_key_secret" {
+  description = "Secrets Manager secret containing the Consul gossip encryption key."
+  value       = aws_secretsmanager_secret.consul_gossip_key
+}
+
+output "private_subnet_ids" {
+  description = "Private subnet IDs used by the Consul cluster."
+  value       = local.vpc.private_subnet_ids
+}
+
+output "public_subnet_ids" {
+  description = "Public subnet IDs used by the Consul cluster."
+  value       = local.vpc.public_subnet_ids
+}
+
+output "cluster_tag" {
+  description = "EC2 tag key and value used for Consul auto-join."
+  value = {
+    key   = local.cluster_tag_key
+    value = local.cluster_tag_value
+  }
+}
+
+output "datacenter" {
+  description = "Consul datacenter name."
+  value       = var.consul_datacenter
+}
