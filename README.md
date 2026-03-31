@@ -156,11 +156,18 @@ module "consul" {
 | Name | Description |
 |------|-------------|
 | <a name="output_bastion_public_ip"></a> [bastion\_public\_ip](#output\_bastion\_public\_ip) | Public IP of the bastion host. |
+| <a name="output_ca_cert_secret"></a> [ca\_cert\_secret](#output\_ca\_cert\_secret) | Secrets Manager secret containing the Consul CA certificate. |
+| <a name="output_cluster_tag"></a> [cluster\_tag](#output\_cluster\_tag) | EC2 tag key and value used for Consul auto-join. |
 | <a name="output_consul_ca_cert"></a> [consul\_ca\_cert](#output\_consul\_ca\_cert) | CA certificate for trusting the Consul TLS chain. |
 | <a name="output_consul_private_ips"></a> [consul\_private\_ips](#output\_consul\_private\_ips) | Private IPs of the Consul nodes. |
 | <a name="output_consul_snapshot_bucket"></a> [consul\_snapshot\_bucket](#output\_consul\_snapshot\_bucket) | S3 bucket for Consul snapshots. |
 | <a name="output_consul_target_group_arn"></a> [consul\_target\_group\_arn](#output\_consul\_target\_group\_arn) | ARN of the Consul NLB target group. |
 | <a name="output_consul_url"></a> [consul\_url](#output\_consul\_url) | URL of the Consul cluster. |
+| <a name="output_datacenter"></a> [datacenter](#output\_datacenter) | Consul datacenter name. |
 | <a name="output_ec2_ami_name"></a> [ec2\_ami\_name](#output\_ec2\_ami\_name) | Name of the AMI used for EC2 instances. |
+| <a name="output_gossip_key_secret"></a> [gossip\_key\_secret](#output\_gossip\_key\_secret) | Secrets Manager secret containing the Consul gossip encryption key. |
+| <a name="output_private_subnet_ids"></a> [private\_subnet\_ids](#output\_private\_subnet\_ids) | Private subnet IDs used by the Consul cluster. |
+| <a name="output_public_subnet_ids"></a> [public\_subnet\_ids](#output\_public\_subnet\_ids) | Public subnet IDs used by the Consul cluster. |
+| <a name="output_security_group"></a> [security\_group](#output\_security\_group) | Consul cluster security group. |
 | <a name="output_vpc_id"></a> [vpc\_id](#output\_vpc\_id) | VPC ID (created or existing). |
 <!-- END_TF_DOCS -->
