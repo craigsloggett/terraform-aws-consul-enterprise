@@ -129,3 +129,12 @@ resource "aws_secretsmanager_secret_version" "consul_gossip_key" {
   secret_id     = aws_secretsmanager_secret.consul_gossip_key.id
   secret_string = random_id.gossip_key.b64_std
 }
+
+# Placeholder Secrets (Populated After ACL Bootstrap)
+
+resource "aws_secretsmanager_secret" "consul_nomad_token" {
+  name_prefix = "${var.project_name}-consul-nomad-token-"
+  description = "Consul ACL token for Nomad (populated after ACL bootstrap)"
+
+  tags = merge(var.common_tags, { Name = "${var.project_name}-consul-nomad-token" })
+}
