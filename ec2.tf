@@ -55,7 +55,7 @@ resource "aws_instance" "consul" {
   })
 
   tags = merge(var.common_tags, {
-    Name                    = "${var.project_name}-consul-${count.index}"
+    Name                    = "${var.project_name}-consul-server-${count.index}"
     (local.cluster_tag_key) = local.cluster_tag_value
   })
 
