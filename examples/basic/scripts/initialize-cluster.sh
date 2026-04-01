@@ -104,7 +104,7 @@ create_nomad_token() {
   consul_url="$(cd "${repo_root}" && terraform output -raw consul_url)"
 
   # Create the nomad-agent policy (idempotent — ignore 409 if it already exists).
-  policy_rules='node_prefix "" { policy = "write" }\nservice_prefix "" { policy = "read" }\nservice "nomad" { policy = "write" }\nservice "nomad-client" { policy = "write" }\nagent_prefix "" { policy = "read" }'
+  policy_rules='node_prefix "" { policy = "write" }\nservice_prefix "" { policy = "read" }\nservice "nomad-server" { policy = "write" }\nservice "nomad-client" { policy = "write" }\nagent_prefix "" { policy = "read" }'
 
   curl -sf --cacert "${ca_file}" \
     -X PUT \
