@@ -46,6 +46,25 @@ resource "aws_iam_role_policy" "consul_secrets_manager" {
   policy      = data.aws_iam_policy_document.consul_secrets_manager.json
 }
 
+# Secrets Manager (Nomad ACL token — read/write during initialization)
+
+data "aws_iam_policy_document" "consul_nomad_token" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:PutSecretValue",
+    ]
+    resources = [aws_secretsmanager_secret.consul_nomad_token.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "consul_nomad_token" {
+  name_prefix = "${var.project_name}-nomad-token-"
+  role        = aws_iam_role.consul.id
+  policy      = data.aws_iam_policy_document.consul_nomad_token.json
+}
+
 # S3 (snapshots)
 
 data "aws_iam_policy_document" "consul_s3" {
