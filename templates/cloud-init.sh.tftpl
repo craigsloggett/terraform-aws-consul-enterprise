@@ -88,6 +88,10 @@ install_consul() {
 
   apt-get -yq update >/dev/null
   apt-get -yq install consul-enterprise=${consul_version} >/dev/null
+
+  # Move the package-provided environment file out of the config directory
+  # so Consul does not warn about a non-HCL file in -config-dir.
+  mv /etc/consul.d/consul.env /opt/consul/consul.env
 }
 
 get_secret() {
@@ -129,8 +133,8 @@ configure_snapshot_agent() {
   log "Configuring the Consul snapshot agent."
 
   # Write the snapshot agent configuration (must be JSON, not HCL).
-  log "  Writing /etc/consul.d/snapshot-agent.json."
-  cat >/etc/consul.d/snapshot-agent.json <<EOF
+  log "  Writing /opt/consul/snapshot-agent.json."
+  cat >/opt/consul/snapshot-agent.json <<EOF
 {
   "snapshot_agent": {
     "snapshot": {
@@ -149,14 +153,14 @@ configure_snapshot_agent() {
   }
 }
 EOF
-  chown consul:consul /etc/consul.d/snapshot-agent.json
-  chmod 640 /etc/consul.d/snapshot-agent.json
+  chown consul:consul /opt/consul/snapshot-agent.json
+  chmod 640 /opt/consul/snapshot-agent.json
 
   # Write the token placeholder for the snapshot agent.
-  log "  Writing /etc/consul.d/snapshot-token placeholder."
-  printf 'CONSUL_HTTP_TOKEN=\n' >/etc/consul.d/snapshot-token
-  chown consul:consul /etc/consul.d/snapshot-token
-  chmod 600 /etc/consul.d/snapshot-token
+  log "  Writing /opt/consul/snapshot-token placeholder."
+  printf 'CONSUL_HTTP_TOKEN=\n' >/opt/consul/snapshot-token
+  chown consul:consul /opt/consul/snapshot-token
+  chmod 600 /opt/consul/snapshot-token
 
   # Write the systemd unit for the snapshot agent.
   log "  Writing /etc/systemd/system/consul-snapshot-agent.service."
@@ -171,8 +175,8 @@ User=consul
 Group=consul
 Environment=CONSUL_HTTP_ADDR=https://127.0.0.1:8501
 Environment=CONSUL_CACERT=/opt/consul/tls/ca.crt
-EnvironmentFile=/etc/consul.d/snapshot-token
-ExecStart=/usr/bin/consul snapshot agent -config-file=/etc/consul.d/snapshot-agent.json
+EnvironmentFile=/opt/consul/snapshot-token
+ExecStart=/usr/bin/consul snapshot agent -config-file=/opt/consul/snapshot-agent.json
 Restart=on-failure
 RestartSec=30
 
@@ -283,7 +287,7 @@ acl {
   enable_token_persistence = true
 }
 
-retry_join = ["provider=aws tag_key=${cluster_tag_key} tag_value=${cluster_tag_value}"]
+retry_join = ["provider=aws service_type=ec2 addr_type=private_v4 region=${region} tag_key=${cluster_tag_key} tag_value=${cluster_tag_value}"]
 
 performance {
   raft_multiplier = 1
