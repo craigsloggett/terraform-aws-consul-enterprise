@@ -1,0 +1,8 @@
+datacenter       = "${datacenter}"
+data_dir         = "/opt/consul/data"
+server           = true
+bootstrap_expect = ${bootstrap_expect}
+license_path     = "/opt/consul/consul.hclic"
+encrypt          = "$${gossip_key}"
+
+retry_join = ["provider=aws service_type=ec2 addr_type=private_v4 region=${region} tag_key=${cluster_tag_key} tag_value=${cluster_tag_value}"]

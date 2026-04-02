@@ -1,5 +1,14 @@
 #!/bin/sh
-# Disable false positives caused by shellcheck not understanding Terraform's template syntax.
+# setup-consul-server.sh — Bootstrap a Consul Enterprise server node on EC2.
+#
+# This script is rendered by Terraform using templatefile() and placed in
+# EC2 instance user data.
+#
+# Assumes:
+#   - Ubuntu or Debian
+#   - IAM instance profile with permissions for Secrets Manager, S3, EC2
+#   - Secrets stored in AWS Secrets Manager
+
 # shellcheck disable=SC2034,SC2086,SC2154,SC2157,SC2170,SC2193
 
 log() {
@@ -129,29 +138,53 @@ get_ec2_private_ip_address() {
     http://169.254.169.254/latest/meta-data/local-ipv4
 }
 
+write_consul_config() {
+  log "Writing Consul configuration files."
+
+  # consul.hcl — contains $${gossip_key} shell variable, needs unquoted heredoc.
+  cat >/etc/consul.d/consul.hcl <<EOF
+${config_server_consul_hcl}
+EOF
+
+  # Per-instance node name.
+  printf 'node_name = "%s"\n' "${node_id}" >/etc/consul.d/node.hcl
+
+  # Static configuration files — single-quoted heredocs (no shell expansion).
+  cat >/etc/consul.d/acl.hcl <<'EOF'
+${config_server_acl_hcl}
+EOF
+
+  cat >/etc/consul.d/auto-encrypt.hcl <<'EOF'
+${config_server_auto_encrypt_hcl}
+EOF
+
+  cat >/etc/consul.d/performance.hcl <<'EOF'
+${config_server_performance_hcl}
+EOF
+
+  cat >/etc/consul.d/ports.hcl <<'EOF'
+${config_server_ports_hcl}
+EOF
+
+  cat >/etc/consul.d/tls.hcl <<'EOF'
+${config_server_tls_hcl}
+EOF
+
+  cat >/etc/consul.d/ui.hcl <<'EOF'
+${config_server_ui_hcl}
+EOF
+
+  chown -R consul:consul /etc/consul.d
+  find /etc/consul.d -type f -name '*.hcl' -exec chmod 640 {} \;
+}
+
 configure_snapshot_agent() {
   log "Configuring the Consul snapshot agent."
 
   # Write the snapshot agent configuration (must be JSON, not HCL).
   log "  Writing /opt/consul/snapshot-agent.json."
-  cat >/opt/consul/snapshot-agent.json <<EOF
-{
-  "snapshot_agent": {
-    "snapshot": {
-      "interval": "${consul_snapshot_interval}",
-      "retain": ${consul_snapshot_retain}
-    },
-    "backup_destinations": {
-      "aws_storage": [
-        {
-          "s3_bucket": "${consul_snapshot_bucket}",
-          "s3_region": "${region}",
-          "s3_key_prefix": "snapshots/"
-        }
-      ]
-    }
-  }
-}
+  cat >/opt/consul/snapshot-agent.json <<'EOF'
+${config_snapshot_agent_json}
 EOF
   chown consul:consul /opt/consul/snapshot-agent.json
   chmod 640 /opt/consul/snapshot-agent.json
@@ -164,25 +197,9 @@ EOF
 
   # Write the systemd unit for the snapshot agent.
   log "  Writing /etc/systemd/system/consul-snapshot-agent.service."
-  cat >/etc/systemd/system/consul-snapshot-agent.service <<'UNIT'
-[Unit]
-Description=Consul Snapshot Agent
-Requires=consul.service
-After=consul.service
-
-[Service]
-User=consul
-Group=consul
-Environment=CONSUL_HTTP_ADDR=https://127.0.0.1:8501
-Environment=CONSUL_CACERT=/opt/consul/tls/ca.crt
-EnvironmentFile=/opt/consul/snapshot-token
-ExecStart=/usr/bin/consul snapshot agent -config-file=/opt/consul/snapshot-agent.json
-Restart=on-failure
-RestartSec=30
-
-[Install]
-WantedBy=multi-user.target
-UNIT
+  cat >/etc/systemd/system/consul-snapshot-agent.service <<'EOF'
+${config_snapshot_agent_service}
+EOF
 
   systemctl daemon-reload
 }
@@ -237,65 +254,8 @@ main() {
   chmod 640 /opt/consul/consul.hclic
   chown consul:consul /opt/consul/consul.hclic
 
-  # Write Consul configuration.
-  log "Generating the /etc/consul.d/consul.hcl configuration file."
-  cat >/etc/consul.d/consul.hcl <<EOF
-datacenter       = "${consul_datacenter}"
-data_dir         = "/opt/consul/data"
-server           = true
-bootstrap_expect = 3
-license_path     = "/opt/consul/consul.hclic"
-encrypt          = "$${gossip_key}"
-node_name        = "${node_id}"
-
-ui_config {
-  enabled = true
-}
-
-addresses {
-  https = "0.0.0.0"
-}
-
-ports {
-  http  = -1
-  https = 8501
-}
-
-tls {
-  defaults {
-    ca_file         = "/opt/consul/tls/ca.crt"
-    cert_file       = "/opt/consul/tls/server.crt"
-    key_file        = "/opt/consul/tls/server.key"
-    verify_incoming = true
-    verify_outgoing = true
-  }
-  https {
-    verify_incoming = false
-  }
-  internal_rpc {
-    verify_server_hostname = true
-  }
-}
-
-auto_encrypt {
-  allow_tls = true
-}
-
-acl {
-  enabled                  = true
-  default_policy           = "deny"
-  enable_token_persistence = true
-}
-
-retry_join = ["provider=aws service_type=ec2 addr_type=private_v4 region=${region} tag_key=${cluster_tag_key} tag_value=${cluster_tag_value}"]
-
-performance {
-  raft_multiplier = 1
-}
-EOF
-
-  chown consul:consul /etc/consul.d/consul.hcl
-  chmod 640 /etc/consul.d/consul.hcl
+  # Write Consul configuration files.
+  write_consul_config
 
   # Set permissions on data directory.
   chown -R consul:consul /opt/consul/data
@@ -306,6 +266,23 @@ EOF
   # Enable and start the Consul service.
   log "Enabling the Consul service."
   systemctl enable --now consul
+
+  # Wait for Consul to become available.
+  retries=0
+  max_retries=30
+  while [ "$${retries}" -lt "$${max_retries}" ]; do
+    if curl -sf --cacert /opt/consul/tls/ca.crt --cert /opt/consul/tls/server.crt --key /opt/consul/tls/server.key https://127.0.0.1:8501/v1/status/leader | grep -q '.'; then
+      log "Consul server is accepting connections."
+      break
+    fi
+    retries=$((retries + 1))
+    log "  Waiting for Consul server (attempt $${retries}/$${max_retries})..."
+    sleep 5
+  done
+
+  if [ "$${retries}" -ge "$${max_retries}" ]; then
+    log "WARNING: Consul did not become healthy within timeout."
+  fi
 }
 
 main "$@"
