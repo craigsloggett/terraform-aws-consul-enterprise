@@ -12,7 +12,6 @@ read_terraform_outputs() {
   repo_root="$(cd "$(dirname "$0")/.." && pwd)"
   bastion_ip=$(cd "${repo_root}" && terraform output -raw bastion_public_ip)
   consul_ips=$(cd "${repo_root}" && terraform output -json consul_private_ips | jq -r '.[]')
-  consul_ca_cert=$(cd "${repo_root}" && terraform output -raw consul_ca_cert)
   consul_token_secret_arn=$(cd "${repo_root}" && terraform output -raw consul_token_secret_arn)
   ami_name=$(cd "${repo_root}" && terraform output -raw ec2_ami_name)
 
@@ -81,92 +80,38 @@ bootstrap_acl() {
   fi
 }
 
-configure_agent_tokens() {
-  init_file="$(cd "$(dirname "$0")" && pwd)/consul-init.json"
-  bootstrap_token=$(jq -r '.SecretID' "${init_file}")
-
-  ca_file="$(mktemp)"
-  printf '%s' "${consul_ca_cert}" >"${ca_file}"
-
-  consul_url="$(cd "${repo_root}" && terraform output -raw consul_url)"
-
-  log "Creating consul-server-agent ACL policy."
-
-  policy_rules='node_prefix "" { policy = "write" }\nservice_prefix "" { policy = "read" }'
-
-  curl -sf --cacert "${ca_file}" \
-    -X PUT \
-    -H "X-Consul-Token: ${bootstrap_token}" \
-    -d "{\"Name\":\"consul-server-agent\",\"Rules\":\"${policy_rules}\"}" \
-    "${consul_url}/v1/acl/policy" >/dev/null 2>&1 || true
-
-  log "Creating agent token."
-
-  agent_token=$(curl -sf \
-    --cacert "${ca_file}" \
-    -X PUT \
-    -H "X-Consul-Token: ${bootstrap_token}" \
-    -d '{"Description":"Consul server agent token","Policies":[{"Name":"consul-server-agent"}]}' \
-    "${consul_url}/v1/acl/token" | jq -r '.SecretID')
-
-  rm -f "${ca_file}"
-
-  if [ -z "${agent_token}" ] || [ "${agent_token}" = "null" ]; then
-    log "ERROR: Failed to create agent token."
-    exit 1
-  fi
-
-  log "Setting agent token on all server nodes."
-
-  for ip in ${consul_ips}; do
-    log "  Setting agent token on ${ip}."
-    remote_exec "${ip}" \
-      "sudo consul acl set-agent-token -ca-file=/opt/consul/tls/ca.crt -client-cert=/opt/consul/tls/server.crt -client-key=/opt/consul/tls/server.key -http-addr=https://127.0.0.1:8501 -token=${bootstrap_token} agent ${agent_token}"
-  done
-
-  log "Agent token configured on all nodes."
-}
-
 create_nomad_token() {
   init_file="$(cd "$(dirname "$0")" && pwd)/consul-init.json"
   bootstrap_token=$(jq -r '.SecretID' "${init_file}")
 
-  # Skip if the secret already contains a real token (not the placeholder).
-  current_value=$(aws secretsmanager get-secret-value \
-    --secret-id "${consul_token_secret_arn}" \
-    --region us-east-1 \
-    --query 'SecretString' --output text 2>/dev/null || true)
+  # Skip if the secret already contains a real token.
+  current_value=$(remote_exec "${first_consul_ip}" \
+    "aws secretsmanager get-secret-value \
+      --secret-id '${consul_token_secret_arn}' \
+      --region us-east-1 \
+      --query SecretString --output text" 2>/dev/null || true)
 
-  if [ -n "${current_value}" ] && [ "${current_value}" != "PLACEHOLDER" ]; then
+  if [ -n "${current_value}" ]; then
     log "Nomad token already exists in Secrets Manager, skipping."
     return
   fi
 
   log "Creating Consul ACL policy and token for Nomad."
 
-  ca_file="$(mktemp)"
-  printf '%s' "${consul_ca_cert}" >"${ca_file}"
+  consul_flags="-ca-file=/opt/consul/tls/ca.crt -client-cert=/opt/consul/tls/server.crt -client-key=/opt/consul/tls/server.key -http-addr=https://127.0.0.1:8501 -token=${bootstrap_token}"
 
-  consul_url="$(cd "${repo_root}" && terraform output -raw consul_url)"
-
-  # Create the nomad-agent policy (idempotent — ignore 409 if it already exists).
-  policy_rules='node_prefix "" { policy = "write" }\nservice_prefix "" { policy = "read" }\nservice "nomad-server" { policy = "write" }\nservice "nomad-client" { policy = "write" }\nagent_prefix "" { policy = "read" }'
-
-  curl -sf --cacert "${ca_file}" \
-    -X PUT \
-    -H "X-Consul-Token: ${bootstrap_token}" \
-    -d "{\"Name\":\"nomad-agent\",\"Rules\":\"${policy_rules}\"}" \
-    "${consul_url}/v1/acl/policy" >/dev/null 2>&1 || true
+  # Create the nomad-agent policy (idempotent — ignore error if it already exists).
+  # shellcheck disable=SC2086
+  remote_exec "${first_consul_ip}" \
+    "sudo consul acl policy create -name=nomad-agent \
+      -rules='node_prefix \"\" { policy = \"write\" } service_prefix \"\" { policy = \"read\" } service \"nomad-server\" { policy = \"write\" } service \"nomad-client\" { policy = \"write\" } agent_prefix \"\" { policy = \"read\" }' \
+      ${consul_flags}" >/dev/null 2>&1 || true
 
   # Create the token with the policy.
-  nomad_token=$(curl -sf \
-    --cacert "${ca_file}" \
-    -X PUT \
-    -H "X-Consul-Token: ${bootstrap_token}" \
-    -d '{"Description":"Nomad agent token","Policies":[{"Name":"nomad-agent"}]}' \
-    "${consul_url}/v1/acl/token" | jq -r '.SecretID')
-
-  rm -f "${ca_file}"
+  # shellcheck disable=SC2086
+  nomad_token=$(remote_exec "${first_consul_ip}" \
+    "sudo consul acl token create -description='Nomad agent token' -policy-name=nomad-agent -format=json \
+      ${consul_flags}" | jq -r '.SecretID')
 
   if [ -z "${nomad_token}" ] || [ "${nomad_token}" = "null" ]; then
     log "ERROR: Failed to create Nomad ACL token."
@@ -175,10 +120,11 @@ create_nomad_token() {
 
   log "Storing Nomad token in Secrets Manager."
 
-  aws secretsmanager put-secret-value \
-    --secret-id "${consul_token_secret_arn}" \
-    --secret-string "${nomad_token}" \
-    --region us-east-1 >/dev/null
+  remote_exec "${first_consul_ip}" \
+    "aws secretsmanager put-secret-value \
+      --secret-id '${consul_token_secret_arn}' \
+      --secret-string '${nomad_token}' \
+      --region us-east-1" >/dev/null
 
   log "Nomad token created and stored in Secrets Manager."
 }
@@ -192,7 +138,7 @@ configure_snapshot_agent() {
   for ip in ${consul_ips}; do
     log "  Writing snapshot token on ${ip}."
     remote_exec "${ip}" \
-      "sudo sed -i 's|^CONSUL_HTTP_TOKEN=.*|CONSUL_HTTP_TOKEN=${bootstrap_token}|' /opt/consul/snapshot-token && sudo systemctl enable --now consul-snapshot-agent"
+      "sudo sed -i 's|^CONSUL_HTTP_TOKEN=.*|CONSUL_HTTP_TOKEN=${bootstrap_token}|' /etc/consul.d/snapshot-token && sudo systemctl enable --now consul-snapshot-agent"
   done
 
   log "Snapshot agent started on all nodes."
@@ -213,7 +159,6 @@ main() {
   read_terraform_outputs
   wait_for_consul
   bootstrap_acl
-  configure_agent_tokens
   create_nomad_token
   configure_snapshot_agent
 }
