@@ -1,8 +1,18 @@
-datacenter       = "${datacenter}"
-data_dir         = "/opt/consul/data"
+node_name  = "$${node_id}"
+datacenter = "${datacenter}"
+data_dir   = "/opt/consul/data"
+log_level  = "INFO"
+
 server           = true
 bootstrap_expect = ${bootstrap_expect}
-license_path     = "/opt/consul/consul.hclic"
-encrypt          = "$${gossip_key}"
+
+license_path = "/opt/consul/consul.hclic"
+
+bind_addr   = "$${private_ip}"
+client_addr = "127.0.0.1"
+
+leave_on_terminate = true
+
+encrypt = "$${gossip_key}"
 
 retry_join = ["provider=aws service_type=ec2 addr_type=private_v4 region=${region} tag_key=${cluster_tag_key} tag_value=${cluster_tag_value}"]
