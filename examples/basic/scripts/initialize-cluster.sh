@@ -12,7 +12,6 @@ read_terraform_outputs() {
   repo_root="$(cd "$(dirname "$0")/.." && pwd)"
   bastion_ip=$(cd "${repo_root}" && terraform output -raw bastion_public_ip)
   consul_ips=$(cd "${repo_root}" && terraform output -json consul_private_ips | jq -r '.[]')
-  consul_ca_cert=$(cd "${repo_root}" && terraform output -raw consul_ca_cert)
   consul_url=$(cd "${repo_root}" && terraform output -raw consul_url)
   consul_token_secret_arn=$(cd "${repo_root}" && terraform output -raw consul_token_secret_arn)
   ami_name=$(cd "${repo_root}" && terraform output -raw ec2_ami_name)
@@ -91,11 +90,8 @@ configure_agent_tokens() {
   init_file="$(cd "$(dirname "$0")" && pwd)/consul-init.json"
   bootstrap_token=$(jq -r '.SecretID' "${init_file}")
 
-  ca_file=$(mktemp)
-  printf '%s\n' "${consul_ca_cert}" >"${ca_file}"
-
   # Create the consul-server-agent policy (idempotent — ignore error if it already exists).
-  curl -sf --cacert "${ca_file}" \
+  curl -sf \
     -X PUT "${consul_url}/v1/acl/policy" \
     -H "X-Consul-Token: ${bootstrap_token}" \
     --data '{
@@ -104,15 +100,13 @@ configure_agent_tokens() {
     }' >/dev/null 2>&1 || true
 
   # Create an agent token with the policy.
-  agent_token=$(curl -sf --cacert "${ca_file}" \
+  agent_token=$(curl -sf \
     -X PUT "${consul_url}/v1/acl/token" \
     -H "X-Consul-Token: ${bootstrap_token}" \
     --data '{
       "Description": "Consul server agent token",
       "Policies": [{"Name": "consul-server-agent"}]
     }' | jq -r '.SecretID')
-
-  rm -f "${ca_file}"
 
   if [ -z "${agent_token}" ] || [ "${agent_token}" = "null" ]; then
     log "ERROR: Failed to create Consul agent token."
@@ -152,11 +146,8 @@ create_nomad_token() {
 
   log "Creating Consul ACL policy and token for Nomad."
 
-  ca_file=$(mktemp)
-  printf '%s\n' "${consul_ca_cert}" >"${ca_file}"
-
   # Create the nomad-agent policy (idempotent — ignore error if it already exists).
-  curl -sf --cacert "${ca_file}" \
+  curl -sf \
     -X PUT "${consul_url}/v1/acl/policy" \
     -H "X-Consul-Token: ${bootstrap_token}" \
     --data '{
@@ -165,15 +156,13 @@ create_nomad_token() {
     }' >/dev/null 2>&1 || true
 
   # Create the token with the policy.
-  nomad_token=$(curl -sf --cacert "${ca_file}" \
+  nomad_token=$(curl -sf \
     -X PUT "${consul_url}/v1/acl/token" \
     -H "X-Consul-Token: ${bootstrap_token}" \
     --data '{
       "Description": "Nomad agent token",
       "Policies": [{"Name": "nomad-agent"}]
     }' | jq -r '.SecretID')
-
-  rm -f "${ca_file}"
 
   if [ -z "${nomad_token}" ] || [ "${nomad_token}" = "null" ]; then
     log "ERROR: Failed to create Nomad ACL token."
