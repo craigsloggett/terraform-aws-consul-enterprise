@@ -161,7 +161,7 @@ create_nomad_token() {
     -H "X-Consul-Token: ${bootstrap_token}" \
     --data '{
       "Name": "nomad-agent",
-      "Rules": "node_prefix \"\" { policy = \"write\" }\nservice_prefix \"\" { policy = \"read\" }\nservice \"'"${nomad_server_service_name}"'\" { policy = \"write\" }\nservice \"'"${nomad_client_service_name}"'\" { policy = \"write\" }\nservice \"'"${nomad_snapshot_service_name}"'\" { policy = \"write\" }\nagent_prefix \"\" { policy = \"read\" }"
+      "Rules": "node_prefix \"\" { policy = \"write\" }\nservice_prefix \"\" { policy = \"read\" }\nservice \"'"${nomad_server_service_name}"'\" { policy = \"write\" }\nservice \"'"${nomad_client_service_name}"'\" { policy = \"write\" }\nservice \"'"${nomad_snapshot_service_name}"'\" { policy = \"write\" }\nagent_prefix \"\" { policy = \"read\" }\nsession_prefix \"\" { policy = \"write\" }\nkey_prefix \"nomad-snapshot/\" { policy = \"write\" }"
     }' >/dev/null 2>&1 || true
 
   # Create the token with the policy.
