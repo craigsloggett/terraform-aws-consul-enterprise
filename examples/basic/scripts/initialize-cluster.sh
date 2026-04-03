@@ -136,10 +136,11 @@ create_nomad_token() {
   bootstrap_token=$(jq -r '.SecretID' "${init_file}")
 
   # Skip if the secret already contains a real token.
-  current_value=$(aws secretsmanager get-secret-value \
-    --secret-id "${consul_token_secret_arn}" \
-    --region us-east-1 \
-    --query 'SecretString' --output text 2>/dev/null || true)
+  current_value=$(remote_exec "${first_consul_ip}" \
+    "aws secretsmanager get-secret-value \
+      --secret-id '${consul_token_secret_arn}' \
+      --region us-east-1 \
+      --query SecretString --output text" 2>/dev/null || true)
 
   if [ -n "${current_value}" ] && [ "${current_value}" != "PLACEHOLDER" ]; then
     log "Nomad token already exists in Secrets Manager, skipping."
@@ -178,10 +179,11 @@ create_nomad_token() {
 
   log "Storing Nomad token in Secrets Manager."
 
-  aws secretsmanager put-secret-value \
-    --secret-id "${consul_token_secret_arn}" \
-    --secret-string "${nomad_token}" \
-    --region us-east-1 >/dev/null
+  remote_exec "${first_consul_ip}" \
+    "aws secretsmanager put-secret-value \
+      --secret-id '${consul_token_secret_arn}' \
+      --secret-string '${nomad_token}' \
+      --region us-east-1" >/dev/null
 
   log "Nomad token created and stored in Secrets Manager."
 }
