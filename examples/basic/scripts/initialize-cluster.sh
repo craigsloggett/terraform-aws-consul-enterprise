@@ -138,7 +138,7 @@ configure_snapshot_agent() {
   for ip in ${consul_ips}; do
     log "  Writing snapshot token on ${ip}."
     remote_exec "${ip}" \
-      "sudo sed -i 's|^CONSUL_HTTP_TOKEN=.*|CONSUL_HTTP_TOKEN=${bootstrap_token}|' /etc/consul.d/snapshot-token && sudo systemctl enable --now consul-snapshot-agent"
+      "sudo sed -i 's|^CONSUL_HTTP_TOKEN=.*|CONSUL_HTTP_TOKEN=${bootstrap_token}|' /opt/consul/snapshot-token && sudo systemctl enable --now consul-snapshot-agent"
   done
 
   log "Snapshot agent started on all nodes."
