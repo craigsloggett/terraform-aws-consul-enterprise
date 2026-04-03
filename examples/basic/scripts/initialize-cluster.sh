@@ -16,6 +16,8 @@ read_terraform_outputs() {
   consul_url=$(cd "${repo_root}" && terraform output -raw consul_url)
   consul_token_secret_arn=$(cd "${repo_root}" && terraform output -raw consul_token_secret_arn)
   ami_name=$(cd "${repo_root}" && terraform output -raw ec2_ami_name)
+  nomad_server_service_name=$(cd "${repo_root}" && terraform output -raw nomad_server_service_name)
+  nomad_client_service_name=$(cd "${repo_root}" && terraform output -raw nomad_client_service_name)
 
   first_consul_ip=$(printf '%s\n' "${consul_ips}" | head -1)
 
@@ -158,7 +160,7 @@ create_nomad_token() {
     -H "X-Consul-Token: ${bootstrap_token}" \
     --data '{
       "Name": "nomad-agent",
-      "Rules": "node_prefix \"\" { policy = \"write\" }\nservice_prefix \"\" { policy = \"read\" }\nservice \"nomad-server\" { policy = \"write\" }\nservice \"nomad-client\" { policy = \"write\" }\nagent_prefix \"\" { policy = \"read\" }"
+      "Rules": "node_prefix \"\" { policy = \"write\" }\nservice_prefix \"\" { policy = \"read\" }\nservice \"'"${nomad_server_service_name}"'\" { policy = \"write\" }\nservice \"'"${nomad_client_service_name}"'\" { policy = \"write\" }\nagent_prefix \"\" { policy = \"read\" }"
     }' >/dev/null 2>&1 || true
 
   # Create the token with the policy.

@@ -135,6 +135,18 @@ variable "consul_datacenter" {
   default     = "dc1"
 }
 
+variable "nomad_server_service_name" {
+  description = "Consul service name Nomad servers will register as."
+  type        = string
+  default     = "nomad-server"
+}
+
+variable "nomad_client_service_name" {
+  description = "Consul service name Nomad clients will register as."
+  type        = string
+  default     = "nomad-client"
+}
+
 # NLB
 
 variable "nlb_internal" {
