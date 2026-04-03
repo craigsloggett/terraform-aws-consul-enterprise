@@ -36,7 +36,7 @@ resource "aws_instance" "consul" {
   }
 
   user_data = templatefile("${path.module}/templates/server/user-data.sh.tftpl", {
-    consul_version                 = var.consul_package_version
+    consul_version                 = var.consul_version
     ebs_device_name                = local.ebs_device_name
     node_id                        = "consul-${count.index}"
     region                         = data.aws_region.current.region
@@ -53,6 +53,7 @@ resource "aws_instance" "consul" {
     config_server_tls_hcl          = local.config_server_tls_hcl
     config_server_ui_hcl           = local.config_server_ui_hcl
     config_snapshot_agent_json     = local.config_snapshot_agent_json
+    config_consul_service          = local.config_consul_service
     config_snapshot_agent_service  = local.config_snapshot_agent_service
   })
 

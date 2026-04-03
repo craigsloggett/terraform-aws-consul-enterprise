@@ -66,10 +66,10 @@ module "consul" {
 | <a name="input_consul_ebs_volume_size"></a> [consul\_ebs\_volume\_size](#input\_consul\_ebs\_volume\_size) | Size in GiB of the EBS volume for Consul Raft storage. | `number` | `100` | no |
 | <a name="input_consul_instance_type"></a> [consul\_instance\_type](#input\_consul\_instance\_type) | EC2 instance type for Consul nodes. | `string` | `"m5.large"` | no |
 | <a name="input_consul_license"></a> [consul\_license](#input\_consul\_license) | Consul Enterprise license string. | `string` | n/a | yes |
-| <a name="input_consul_package_version"></a> [consul\_package\_version](#input\_consul\_package\_version) | Consul Enterprise apt package version to install (e.g., 1.22.6+ent-1). | `string` | `"1.22.6+ent-1"` | no |
 | <a name="input_consul_snapshot_interval"></a> [consul\_snapshot\_interval](#input\_consul\_snapshot\_interval) | Interval between automated Raft snapshots (e.g., 1h, 30m, 24h). | `string` | `"1h"` | no |
 | <a name="input_consul_snapshot_retain"></a> [consul\_snapshot\_retain](#input\_consul\_snapshot\_retain) | Number of automated Raft snapshots to retain in S3. | `number` | `72` | no |
 | <a name="input_consul_subdomain"></a> [consul\_subdomain](#input\_consul\_subdomain) | Subdomain for the Consul DNS record. | `string` | `"consul"` | no |
+| <a name="input_consul_version"></a> [consul\_version](#input\_consul\_version) | Consul Enterprise release version (e.g., 1.22.6+ent). | `string` | `"1.22.6+ent"` | no |
 | <a name="input_ec2_ami"></a> [ec2\_ami](#input\_ec2\_ami) | AMI to use for EC2 instances. Must be Ubuntu or Debian-based. | <pre>object({<br/>    id   = string<br/>    name = string<br/>  })</pre> | n/a | yes |
 | <a name="input_ec2_key_pair_name"></a> [ec2\_key\_pair\_name](#input\_ec2\_key\_pair\_name) | Name of an existing EC2 key pair for SSH access. | `string` | n/a | yes |
 | <a name="input_existing_vpc"></a> [existing\_vpc](#input\_existing\_vpc) | Existing VPC to deploy into. When null (default), a new VPC is created.<br/>The existing VPC must already have the required VPC endpoints:<br/>Secrets Manager and EC2 (Interface), S3 (Gateway). | <pre>object({<br/>    vpc_id             = string<br/>    private_subnet_ids = list(string)<br/>    public_subnet_ids  = list(string)<br/>  })</pre> | `null` | no |

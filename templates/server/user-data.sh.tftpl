@@ -89,18 +89,15 @@ format_and_mount_ebs() {
 install_consul() {
   log "  Installing Consul Enterprise ${consul_version}."
 
-  curl -fsSL https://apt.releases.hashicorp.com/gpg |
-    gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+  consul_zip="consul_${consul_version}_linux_amd64.zip"
+  consul_url="https://releases.hashicorp.com/consul/${consul_version}/$${consul_zip}"
 
-  echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
-    >/etc/apt/sources.list.d/hashicorp.list
-
-  apt-get -yq update >/dev/null
-  apt-get -yq install consul-enterprise=${consul_version} >/dev/null
-
-  # Move the package-provided environment file out of the config directory
-  # so Consul does not warn about a non-HCL file in -config-dir.
-  mv /etc/consul.d/consul.env /opt/consul/consul.env
+  cd /tmp
+  curl -sSLO "$${consul_url}"
+  unzip -o "$${consul_zip}" -d /usr/local/bin
+  rm -f "$${consul_zip}"
+  chmod 0755 /usr/local/bin/consul
+  consul version
 }
 
 get_secret() {
@@ -220,12 +217,19 @@ main() {
 
   # Install dependencies.
   log "Setting up system packages."
-  install_packages awscli jq unzip gnupg lsb-release nvme-cli amazon-ec2-utils
+  install_packages awscli jq unzip nvme-cli amazon-ec2-utils
 
   # Format and mount the EBS volume for Raft storage.
   log "Setting up EBS storage."
   device="$(find_ebs_device)"
   format_and_mount_ebs "$${device}"
+
+  # Create the consul system user and directories.
+  if ! id -u consul >/dev/null 2>&1; then
+    useradd --system --home /etc/consul.d --shell /bin/false consul
+  fi
+  mkdir -p /etc/consul.d
+  mkdir -p /opt/consul/data
 
   # Install Consul Enterprise.
   log "Setting up Consul Enterprise."
@@ -262,6 +266,13 @@ main() {
 
   # Configure the snapshot agent (not started until operator provides a token).
   configure_snapshot_agent
+
+  # Write the Consul systemd unit file.
+  log "Writing the Consul systemd unit file."
+  cat >/etc/systemd/system/consul.service <<'EOF'
+${config_consul_service}
+EOF
+  systemctl daemon-reload
 
   # Enable and start the Consul service.
   log "Enabling the Consul service."

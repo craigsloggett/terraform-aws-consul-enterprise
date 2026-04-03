@@ -24,6 +24,7 @@ locals {
   # Static configuration files
   # ---------------------------------------------------------------------------
 
+  config_consul_service          = file("${path.module}/files/server/consul.service")
   config_server_acl_hcl          = file("${path.module}/files/server/acl.hcl")
   config_server_auto_encrypt_hcl = file("${path.module}/files/server/auto-encrypt.hcl")
   config_server_performance_hcl  = file("${path.module}/files/server/performance.hcl")
