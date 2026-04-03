@@ -1,0 +1,17 @@
+[Unit]
+Description=Consul Snapshot Agent
+Requires=consul.service
+After=consul.service
+
+[Service]
+User=consul
+Group=consul
+Environment=CONSUL_HTTP_ADDR=https://127.0.0.1:8501
+Environment=CONSUL_CACERT=/opt/consul/tls/ca.crt
+EnvironmentFile=/opt/consul/snapshot-token
+ExecStart=/usr/local/bin/consul snapshot agent -config-file=/opt/consul/snapshot-agent.json
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

@@ -81,3 +81,18 @@ output "datacenter" {
   description = "Consul datacenter name."
   value       = var.consul_datacenter
 }
+
+output "nomad_server_service_name" {
+  description = "Consul service name Nomad servers will register as."
+  value       = var.nomad_server_service_name
+}
+
+output "nomad_client_service_name" {
+  description = "Consul service name Nomad clients will register as."
+  value       = var.nomad_client_service_name
+}
+
+output "nomad_snapshot_service_name" {
+  description = "Consul service name the Nomad snapshot agent will register as."
+  value       = var.nomad_snapshot_service_name
+}

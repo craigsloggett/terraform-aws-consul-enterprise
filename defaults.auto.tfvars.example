@@ -1,3 +1,13 @@
-project_name        = "consul-enterprise"
-consul_license      = "your-consul-enterprise-license-here"
-ec2_key_pair_name   = "my-key-pair"
+project_name      = "consul-enterprise"
+consul_license    = "your-consul-enterprise-license-here"
+ec2_key_pair_name = "my-key-pair"
+
+route53_zone = {
+  zone_id = "Z0123456789ABCDEFGHIJ"
+  name    = "example.com"
+}
+
+ec2_ami = {
+  id   = "ami-0abcdef1234567890"
+  name = "ubuntu-24.04-consul-1.22.6"
+}

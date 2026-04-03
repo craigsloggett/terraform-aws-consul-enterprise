@@ -123,21 +123,34 @@ variable "consul_subdomain" {
   default     = "consul"
 }
 
-variable "consul_package_version" {
+variable "consul_version" {
   type        = string
-  description = "Consul Enterprise apt package version to install (e.g., 1.22.6+ent-1)."
-  default     = "1.22.6+ent-1"
-
-  validation {
-    condition     = can(regex("^\\d+\\.\\d+\\.\\d+\\+ent-\\d+$", var.consul_package_version))
-    error_message = "Must be a valid Consul Enterprise package version (e.g., 1.20.3+ent-1)."
-  }
+  description = "Consul Enterprise release version (e.g., 1.22.6+ent)."
+  default     = "1.22.6+ent"
 }
 
 variable "consul_datacenter" {
   type        = string
   description = "Consul datacenter name."
   default     = "dc1"
+}
+
+variable "nomad_server_service_name" {
+  description = "Consul service name Nomad servers will register as."
+  type        = string
+  default     = "nomad-server"
+}
+
+variable "nomad_client_service_name" {
+  description = "Consul service name Nomad clients will register as."
+  type        = string
+  default     = "nomad-client"
+}
+
+variable "nomad_snapshot_service_name" {
+  description = "Consul service name the Nomad snapshot agent will register as."
+  type        = string
+  default     = "nomad-snapshot"
 }
 
 # NLB

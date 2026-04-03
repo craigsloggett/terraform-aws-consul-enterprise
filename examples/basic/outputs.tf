@@ -33,3 +33,18 @@ output "consul_ca_cert" {
   value       = module.consul.consul_ca_cert
   sensitive   = true
 }
+
+output "consul_token_secret_arn" {
+  description = "ARN of the Secrets Manager secret for the Consul Nomad token."
+  value       = module.consul.nomad_token_secret.arn
+}
+
+output "nomad_server_service_name" {
+  description = "Consul service name Nomad servers will register as."
+  value       = module.consul.nomad_server_service_name
+}
+
+output "nomad_client_service_name" {
+  description = "Consul service name Nomad clients will register as."
+  value       = module.consul.nomad_client_service_name
+}
