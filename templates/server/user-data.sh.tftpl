@@ -285,6 +285,11 @@ write_consul_config() {
 ${config_server_consul_hcl}
 EOF
 
+  # --- Server stanza ---
+  cat >"$${consul_config_dir}/server.hcl" <<'EOF'
+${config_server_server_hcl}
+EOF
+
   # Static configuration files — single-quoted heredocs (no shell expansion).
   cat >"$${consul_config_dir}/acl.hcl" <<'EOF'
 ${config_server_acl_hcl}

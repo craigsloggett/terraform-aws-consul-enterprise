@@ -46,6 +46,7 @@ resource "aws_instance" "consul" {
     consul_server_key_secret_arn   = aws_secretsmanager_secret.consul_server_key.arn
     consul_gossip_key_secret_arn   = aws_secretsmanager_secret.consul_gossip_key.arn
     config_server_consul_hcl       = local.config_server_consul_hcl
+    config_server_server_hcl       = local.config_server_server_hcl
     config_server_acl_hcl          = local.config_server_acl_hcl
     config_server_auto_encrypt_hcl = local.config_server_auto_encrypt_hcl
     config_server_performance_hcl  = local.config_server_performance_hcl

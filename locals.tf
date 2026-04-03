@@ -39,10 +39,13 @@ locals {
 
   config_server_consul_hcl = templatefile("${path.module}/templates/server/consul.hcl.tftpl", {
     datacenter        = var.consul_datacenter
-    bootstrap_expect  = local.consul_node_count
     region            = data.aws_region.current.region
     cluster_tag_key   = local.cluster_tag_key
     cluster_tag_value = local.cluster_tag_value
+  })
+
+  config_server_server_hcl = templatefile("${path.module}/templates/server/server.hcl.tftpl", {
+    bootstrap_expect = local.consul_node_count
   })
 
   config_snapshot_agent_json = templatefile("${path.module}/templates/server/snapshot-agent.json.tftpl", {
