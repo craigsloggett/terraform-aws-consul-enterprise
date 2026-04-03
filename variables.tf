@@ -147,6 +147,12 @@ variable "nomad_client_service_name" {
   default     = "nomad-client"
 }
 
+variable "nomad_snapshot_service_name" {
+  description = "Consul service name the Nomad snapshot agent will register as."
+  type        = string
+  default     = "nomad-snapshot"
+}
+
 # NLB
 
 variable "nlb_internal" {
