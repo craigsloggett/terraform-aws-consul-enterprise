@@ -24,31 +24,31 @@ locals {
   # Static configuration files
   # ---------------------------------------------------------------------------
 
-  config_consul_service          = file("${path.module}/files/server/consul.service")
-  config_server_acl_hcl          = file("${path.module}/files/server/acl.hcl")
-  config_server_auto_encrypt_hcl = file("${path.module}/files/server/auto-encrypt.hcl")
-  config_server_performance_hcl  = file("${path.module}/files/server/performance.hcl")
-  config_server_ports_hcl        = file("${path.module}/files/server/ports.hcl")
-  config_server_tls_hcl          = file("${path.module}/files/server/tls.hcl")
-  config_server_ui_hcl           = file("${path.module}/files/server/ui.hcl")
-  config_snapshot_agent_service  = file("${path.module}/files/server/consul-snapshot-agent.service")
+  config_consul_service          = file("${path.module}/files/consul.service")
+  config_server_acl_hcl          = file("${path.module}/files/acl.hcl")
+  config_server_auto_encrypt_hcl = file("${path.module}/files/auto-encrypt.hcl")
+  config_server_performance_hcl  = file("${path.module}/files/performance.hcl")
+  config_server_ports_hcl        = file("${path.module}/files/ports.hcl")
+  config_server_tls_hcl          = file("${path.module}/files/tls.hcl")
+  config_server_ui_hcl           = file("${path.module}/files/ui.hcl")
+  config_snapshot_agent_service  = file("${path.module}/files/consul-snapshot-agent.service")
 
   # ---------------------------------------------------------------------------
   # Rendered configuration files
   # ---------------------------------------------------------------------------
 
-  config_server_consul_hcl = templatefile("${path.module}/templates/server/consul.hcl.tftpl", {
+  config_server_consul_hcl = templatefile("${path.module}/templates/consul.hcl.tftpl", {
     datacenter        = var.consul_datacenter
     region            = data.aws_region.current.region
     cluster_tag_key   = local.cluster_tag_key
     cluster_tag_value = local.cluster_tag_value
   })
 
-  config_server_server_hcl = templatefile("${path.module}/templates/server/server.hcl.tftpl", {
+  config_server_server_hcl = templatefile("${path.module}/templates/server.hcl.tftpl", {
     bootstrap_expect = local.consul_node_count
   })
 
-  config_snapshot_agent_json = templatefile("${path.module}/templates/server/snapshot-agent.json.tftpl", {
+  config_snapshot_agent_json = templatefile("${path.module}/templates/snapshot-agent.json.tftpl", {
     region                   = data.aws_region.current.region
     consul_snapshot_bucket   = aws_s3_bucket.consul_snapshots.id
     consul_snapshot_interval = var.consul_snapshot_interval
