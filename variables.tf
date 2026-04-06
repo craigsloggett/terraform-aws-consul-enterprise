@@ -86,9 +86,9 @@ variable "ec2_ami" {
   description = "AMI to use for EC2 instances. Must be Ubuntu or Debian-based."
 }
 
-variable "consul_instance_type" {
+variable "consul_server_instance_type" {
   type        = string
-  description = "EC2 instance type for Consul nodes."
+  description = "EC2 instance type for Consul server nodes."
   default     = "m5.large"
 }
 
