@@ -35,7 +35,7 @@ resource "aws_instance" "consul" {
     http_put_response_hop_limit = 1
   }
 
-  user_data = templatefile("${path.module}/templates/server/user-data.sh.tftpl", {
+  user_data = templatefile("${path.module}/templates/user-data.sh.tftpl", {
     consul_version                 = var.consul_version
     ebs_device_name                = local.ebs_device_name
     node_id                        = "consul-${count.index}"
