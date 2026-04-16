@@ -34,19 +34,14 @@ output "ec2_ami_name" {
 }
 
 output "consul_ca_cert" {
-  description = "CA certificate for trusting the Consul TLS chain."
-  value       = tls_self_signed_cert.ca.cert_pem
+  description = "CA certificate for trusting the Consul TLS chain (Vault Consul intermediate CA)."
+  value       = vault_pki_secret_backend_root_sign_intermediate.pki_consul.certificate
   sensitive   = true
 }
 
 output "security_group" {
   description = "Consul cluster security group."
   value       = aws_security_group.consul
-}
-
-output "ca_cert_secret" {
-  description = "Secrets Manager secret containing the Consul CA certificate."
-  value       = aws_secretsmanager_secret.consul_ca_cert
 }
 
 output "gossip_key_secret" {

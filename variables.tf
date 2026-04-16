@@ -167,6 +167,68 @@ variable "consul_api_allowed_cidrs" {
   default     = []
 }
 
+# Vault
+
+variable "vault_subdomain" {
+  type        = string
+  description = "Subdomain of the Vault cluster DNS record (e.g., \"vault\" for vault.<zone>)."
+  default     = "vault"
+}
+
+variable "vault_tls_ca_bundle_ssm_parameter_name" {
+  type        = string
+  description = "SSM parameter name holding the Vault PKI root+intermediate CA bundle. When null, defaults to /<project_name>/vault/tls/ca-bundle (the pattern used by terraform-aws-vault-enterprise when the Vault project_name matches this module's)."
+  default     = null
+}
+
+variable "vault_pki_mount" {
+  type        = string
+  description = "Path of the Consul intermediate PKI secrets engine in Vault."
+  default     = "pki_consul"
+}
+
+variable "vault_pki_role" {
+  type        = string
+  description = "Name of the Vault PKI role used to issue Consul server certificates."
+  default     = "consul-server"
+}
+
+variable "vault_aws_auth_role" {
+  type        = string
+  description = "Name of the Vault AWS auth role bound to the Consul server IAM role."
+  default     = "consul-server"
+}
+
+variable "vault_pki_organization" {
+  type        = string
+  description = "Organization attribute set on the Consul intermediate CA certificate."
+  default     = "HashiCorp"
+}
+
+variable "vault_pki_country" {
+  type        = string
+  description = "Country attribute set on the Consul intermediate CA certificate."
+  default     = "US"
+}
+
+variable "vault_pki_intermediate_ttl" {
+  type        = string
+  description = "TTL for the Consul intermediate CA certificate (signed by pki_root)."
+  default     = "26280h"
+}
+
+variable "consul_server_cert_ttl" {
+  type        = string
+  description = "TTL for Consul server certificates issued by Vault."
+  default     = "24h"
+}
+
+variable "vault_version" {
+  type        = string
+  description = "Vault CLI version installed on Consul server nodes (used to authenticate to Vault and issue PKI certificates)."
+  default     = "1.20.5"
+}
+
 # Snapshots
 
 variable "consul_snapshot_interval" {

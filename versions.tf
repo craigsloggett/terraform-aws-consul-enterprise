@@ -6,8 +6,8 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.0"
     }
-    tls = {
-      source  = "hashicorp/tls"
+    vault = {
+      source  = "hashicorp/vault"
       version = "~> 4.0"
     }
     random = {
