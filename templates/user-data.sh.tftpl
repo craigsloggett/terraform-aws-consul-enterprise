@@ -7,7 +7,11 @@
 # Assumes:
 #   - Ubuntu or Debian
 #   - IAM instance profile with permissions for Secrets Manager, S3, EC2
-#   - Secrets stored in AWS Secrets Manager
+#   - Consul Enterprise license stored in AWS Secrets Manager
+#   - Bootstrap secrets (gossip, CA, bootstrap-token) in Vault KV at kv/consul/bootstrap/*
+#   - Server TLS issued on boot from Vault PKI pki_consul/issue/consul-server
+#   - AWS auth method enabled in Vault with a "consul-server" role
+#     bound to this instance's IAM role
 
 # shellcheck disable=SC2034,SC2154,SC2170,SC2269
 # SC2034/SC2154:
@@ -30,6 +34,19 @@ consul_version="${consul_version}"
 consul_data_dir="/opt/consul/data"
 consul_config_dir="/etc/consul.d"
 consul_license_path="/opt/consul/consul.hclic"
+consul_datacenter="${consul_datacenter}"
+consul_fqdn="${consul_fqdn}"
+
+# Vault
+vault_version="${vault_version}"
+vault_addr="${vault_addr}"
+vault_ca_path="/opt/consul/tls/vault-ca.crt"
+vault_ca_cert=$(cat <<'VAULT_CA_EOF'
+${vault_ca_cert}
+VAULT_CA_EOF
+)
+vault_iam_server_id_header="${vault_iam_server_id_header}"
+vault_role="consul-server"
 
 # An EBS data volume backs Raft state + local snapshots.
 # ebs_data_device_name is the attachment name from Terraform (e.g. /dev/xvdf).
@@ -52,10 +69,6 @@ aws_region="${region}"
 
 # AWS Secrets Manager (ARNs)
 secret_consul_license="${consul_license_secret_arn}"
-secret_consul_ca_cert="${consul_ca_cert_secret_arn}"
-secret_consul_server_cert="${consul_server_cert_secret_arn}"
-secret_consul_server_key="${consul_server_key_secret_arn}"
-secret_consul_gossip_key="${consul_gossip_key_secret_arn}"
 
 # Node identity
 node_id="${node_id}"
@@ -243,17 +256,74 @@ install_consul() {
 }
 
 # ---------------------------------------------------------------------------
+# Install Vault CLI (for bootstrap only — fetches secrets from Vault)
+# ---------------------------------------------------------------------------
+
+install_vault_cli() {
+  log_info "Installing Vault CLI $${vault_version}"
+
+  vault_zip="vault_$${vault_version}_linux_amd64.zip"
+  vault_url="https://releases.hashicorp.com/vault/$${vault_version}/$${vault_zip}"
+
+  cd /tmp
+  curl -sSLO "$${vault_url}"
+  unzip -o "$${vault_zip}" -d /usr/local/bin
+  rm -f "$${vault_zip}"
+  chmod 0755 /usr/local/bin/vault
+  vault version
+}
+
+# ---------------------------------------------------------------------------
+# Vault authentication (AWS IAM)
+# ---------------------------------------------------------------------------
+
+vault_login() {
+  log_info "Authenticating to Vault via AWS IAM (role=$${vault_role})"
+
+  mkdir -p "$(dirname "$${vault_ca_path}")"
+  if [ -n "$${vault_ca_cert}" ]; then
+    printf '%s' "$${vault_ca_cert}" >"$${vault_ca_path}"
+    chmod 0644 "$${vault_ca_path}"
+    export VAULT_CACERT="$${vault_ca_path}"
+  else
+    log_warn "vault_ca_cert is empty — skipping TLS verification for Vault calls"
+    export VAULT_SKIP_VERIFY=true
+  fi
+
+  export VAULT_ADDR="$${vault_addr}"
+
+  VAULT_TOKEN="$(vault login \
+    -method=aws \
+    -field=token \
+    role="$${vault_role}" \
+    header_value="$${vault_iam_server_id_header}")"
+  export VAULT_TOKEN
+}
+
+# ---------------------------------------------------------------------------
 # Fetch secrets and write sensitive material to disk
 # ---------------------------------------------------------------------------
 
 write_secrets() {
-  log_info "Fetching secrets from AWS Secrets Manager"
+  private_ip="$${1}"
 
+  log_info "Fetching Consul Enterprise license from AWS Secrets Manager"
   consul_license="$(fetch_secret "$${secret_consul_license}")"
-  gossip_key="$(fetch_secret "$${secret_consul_gossip_key}")"
-  ca_cert="$(fetch_secret "$${secret_consul_ca_cert}")"
-  server_cert="$(fetch_secret "$${secret_consul_server_cert}")"
-  server_key="$(fetch_secret "$${secret_consul_server_key}")"
+
+  log_info "Fetching Consul bootstrap secrets from Vault KV"
+  gossip_key="$(vault kv get -field=key kv/consul/bootstrap/gossip)"
+  ca_cert="$(vault kv get -field=ca_cert kv/consul/bootstrap/ca)"
+  bootstrap_token="$(vault kv get -field=token kv/consul/bootstrap/bootstrap-token || printf '')"
+
+  log_info "Issuing Consul server certificate from Vault PKI"
+  cert_json="$(vault write -format=json "pki_consul/issue/$${vault_role}" \
+    common_name="server.$${consul_datacenter}.consul" \
+    alt_names="$${consul_fqdn},localhost" \
+    ip_sans="127.0.0.1,$${private_ip}" \
+    ttl="72h")"
+
+  server_cert="$(printf '%s' "$${cert_json}" | jq -r '.data.certificate')"
+  server_key="$(printf '%s' "$${cert_json}" | jq -r '.data.private_key')"
 
   # Write the license file
   printf '%s' "$${consul_license}" >"$${consul_license_path}"
@@ -345,8 +415,9 @@ EOF
   chown consul:consul "$${snapshot_config_file}"
   chmod 0640 "$${snapshot_config_file}"
 
-  # Write the token placeholder for the snapshot agent.
-  printf 'CONSUL_HTTP_TOKEN=\n' >"$${snapshot_token_file}"
+  # Seed the snapshot agent token from the Vault-managed bootstrap token.
+  # This is empty until the cluster initialization process populates it.
+  printf 'CONSUL_HTTP_TOKEN=%s\n' "$${bootstrap_token}" >"$${snapshot_token_file}"
   chown consul:consul "$${snapshot_token_file}"
   chmod 0600 "$${snapshot_token_file}"
 
@@ -414,8 +485,10 @@ main() {
   prepare_system
   mount_data_volume
   install_consul
+  install_vault_cli
 
-  write_secrets
+  vault_login
+  write_secrets "$${private_ip}"
   write_consul_config "$${private_ip}"
   write_consul_systemd_unit
   configure_snapshot_agent

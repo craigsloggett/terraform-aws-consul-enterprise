@@ -129,6 +129,12 @@ variable "consul_version" {
   default     = "1.22.6+ent"
 }
 
+variable "vault_version" {
+  type        = string
+  description = "Vault CLI release version installed on Consul server nodes for bootstrap."
+  default     = "1.19.4"
+}
+
 variable "consul_datacenter" {
   type        = string
   description = "Consul datacenter name."
@@ -189,4 +195,41 @@ variable "consul_snapshot_retain" {
     condition     = var.consul_snapshot_retain >= 1
     error_message = "Must retain at least 1 snapshot."
   }
+}
+
+# Vault
+
+variable "vault_fqdn" {
+  type        = string
+  description = "Vault server FQDN. Used for the AIA URLs on the Consul PKI intermediate and as the default IAM server ID header value for AWS auth anti-replay."
+}
+
+variable "vault_ca_cert" {
+  type        = string
+  description = "PEM-encoded CA chain that signed the Vault server certificate. Written to disk on Consul servers and used as VAULT_CACERT during bootstrap. Leave empty to skip TLS verification when calling Vault (not recommended)."
+  default     = ""
+}
+
+variable "vault_iam_server_id_header_value" {
+  type        = string
+  description = "Value of the X-Vault-AWS-IAM-Server-ID header passed during AWS auth login. Must match what is configured on the Vault AWS auth method (auth/aws/config/client iam_server_id_header_value=...). Defaults to vault_fqdn when null."
+  default     = null
+}
+
+variable "vault_pki_root_backend" {
+  type        = string
+  description = "Name of the existing Vault PKI root mount that signs the Consul intermediate CA."
+  default     = "pki_root"
+}
+
+variable "vault_pki_organization" {
+  type        = string
+  description = "Organization embedded in the Consul intermediate CA when signed by the root."
+  default     = null
+}
+
+variable "vault_pki_country" {
+  type        = string
+  description = "Country embedded in the Consul intermediate CA when signed by the root."
+  default     = null
 }

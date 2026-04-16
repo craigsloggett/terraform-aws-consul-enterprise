@@ -81,6 +81,13 @@ module "consul" {
 | <a name="input_nomad_snapshot_service_name"></a> [nomad\_snapshot\_service\_name](#input\_nomad\_snapshot\_service\_name) | Consul service name the Nomad snapshot agent will register as. | `string` | `"nomad-snapshot"` | no |
 | <a name="input_project_name"></a> [project\_name](#input\_project\_name) | Name prefix for all resources. | `string` | n/a | yes |
 | <a name="input_route53_zone"></a> [route53\_zone](#input\_route53\_zone) | Route 53 hosted zone for the Consul DNS record. | <pre>object({<br/>    zone_id = string<br/>    name    = string<br/>  })</pre> | n/a | yes |
+| <a name="input_vault_ca_cert"></a> [vault\_ca\_cert](#input\_vault\_ca\_cert) | PEM-encoded CA chain that signed the Vault server certificate. Written to disk on Consul servers and used as VAULT\_CACERT during bootstrap. Leave empty to skip TLS verification when calling Vault (not recommended). | `string` | `""` | no |
+| <a name="input_vault_fqdn"></a> [vault\_fqdn](#input\_vault\_fqdn) | Vault server FQDN. Used for the AIA URLs on the Consul PKI intermediate and as the default IAM server ID header value for AWS auth anti-replay. | `string` | n/a | yes |
+| <a name="input_vault_iam_server_id_header_value"></a> [vault\_iam\_server\_id\_header\_value](#input\_vault\_iam\_server\_id\_header\_value) | Value of the X-Vault-AWS-IAM-Server-ID header passed during AWS auth login. Must match what is configured on the Vault AWS auth method (auth/aws/config/client iam\_server\_id\_header\_value=...). Defaults to vault\_fqdn when null. | `string` | `null` | no |
+| <a name="input_vault_pki_country"></a> [vault\_pki\_country](#input\_vault\_pki\_country) | Country embedded in the Consul intermediate CA when signed by the root. | `string` | `null` | no |
+| <a name="input_vault_pki_organization"></a> [vault\_pki\_organization](#input\_vault\_pki\_organization) | Organization embedded in the Consul intermediate CA when signed by the root. | `string` | `null` | no |
+| <a name="input_vault_pki_root_backend"></a> [vault\_pki\_root\_backend](#input\_vault\_pki\_root\_backend) | Name of the existing Vault PKI root mount that signs the Consul intermediate CA. | `string` | `"pki_root"` | no |
+| <a name="input_vault_version"></a> [vault\_version](#input\_vault\_version) | Vault CLI release version installed on Consul server nodes for bootstrap. | `string` | `"1.19.4"` | no |
 | <a name="input_vpc_cidr"></a> [vpc\_cidr](#input\_vpc\_cidr) | CIDR block for the VPC. | `string` | `"10.0.0.0/16"` | no |
 | <a name="input_vpc_private_subnets"></a> [vpc\_private\_subnets](#input\_vpc\_private\_subnets) | Private subnet CIDR blocks. | `list(string)` | <pre>[<br/>  "10.0.1.0/24",<br/>  "10.0.2.0/24",<br/>  "10.0.3.0/24"<br/>]</pre> | no |
 | <a name="input_vpc_public_subnets"></a> [vpc\_public\_subnets](#input\_vpc\_public\_subnets) | Public subnet CIDR blocks. | `list(string)` | <pre>[<br/>  "10.0.101.0/24",<br/>  "10.0.102.0/24",<br/>  "10.0.103.0/24"<br/>]</pre> | no |
@@ -148,7 +155,19 @@ module "consul" {
 | [tls_private_key.ca](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/resources/private_key) | resource |
 | [tls_private_key.server](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/resources/private_key) | resource |
 | [tls_self_signed_cert.ca](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/resources/self_signed_cert) | resource |
+| [vault_aws_auth_backend_role.consul_server](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/aws_auth_backend_role) | resource |
+| [vault_kv_secret_v2.consul_bootstrap_token](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/kv_secret_v2) | resource |
+| [vault_kv_secret_v2.consul_ca](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/kv_secret_v2) | resource |
+| [vault_kv_secret_v2.consul_gossip](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/kv_secret_v2) | resource |
 | [vault_mount.consul_bootstrap](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/mount) | resource |
+| [vault_mount.pki_consul](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/mount) | resource |
+| [vault_pki_secret_backend_config_urls.pki_consul](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_secret_backend_config_urls) | resource |
+| [vault_pki_secret_backend_intermediate_cert_request.pki_consul](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_secret_backend_intermediate_cert_request) | resource |
+| [vault_pki_secret_backend_intermediate_set_signed.pki_consul](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_secret_backend_intermediate_set_signed) | resource |
+| [vault_pki_secret_backend_role.consul_client](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_secret_backend_role) | resource |
+| [vault_pki_secret_backend_role.consul_server](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_secret_backend_role) | resource |
+| [vault_pki_secret_backend_root_sign_intermediate.pki_consul](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/pki_secret_backend_root_sign_intermediate) | resource |
+| [vault_policy.consul_server](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/resources/policy) | resource |
 | [aws_availability_zones.available](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/availability_zones) | data source |
 | [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
 | [aws_iam_policy_document.consul_assume_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
@@ -159,6 +178,7 @@ module "consul" {
 | [aws_iam_policy_document.consul_snapshots](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_region.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/region) | data source |
 | [aws_vpc.existing](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/vpc) | data source |
+| [vault_pki_secret_backend_issuer.pki_consul](https://registry.terraform.io/providers/hashicorp/vault/latest/docs/data-sources/pki_secret_backend_issuer) | data source |
 
 ## Outputs
 

@@ -1,10 +1,13 @@
 locals {
   consul_fqdn       = "${var.consul_subdomain}.${var.route53_zone.name}"
   consul_node_count = 3
-  azs               = slice(data.aws_availability_zones.available.names, 0, 3)
-  cluster_tag_key   = "consul-cluster"
-  cluster_tag_value = var.project_name
-  ebs_device_name   = "/dev/xvdf"
+
+  vault_addr                 = "https://${var.vault_fqdn}:8200"
+  vault_iam_server_id_header = coalesce(var.vault_iam_server_id_header_value, var.vault_fqdn)
+  azs                        = slice(data.aws_availability_zones.available.names, 0, 3)
+  cluster_tag_key            = "consul-cluster"
+  cluster_tag_value          = var.project_name
+  ebs_device_name            = "/dev/xvdf"
 
   created_vpc = var.existing_vpc == null ? module.vpc[0] : null
 

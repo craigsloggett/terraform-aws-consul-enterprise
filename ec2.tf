@@ -37,14 +37,16 @@ resource "aws_instance" "consul" {
 
   user_data = templatefile("${path.module}/templates/user-data.sh.tftpl", {
     consul_version                 = var.consul_version
+    consul_datacenter              = var.consul_datacenter
+    consul_fqdn                    = local.consul_fqdn
     ebs_device_name                = local.ebs_device_name
     node_id                        = "consul-${count.index}"
     region                         = data.aws_region.current.region
     consul_license_secret_arn      = aws_secretsmanager_secret.consul_license.arn
-    consul_ca_cert_secret_arn      = aws_secretsmanager_secret.consul_ca_cert.arn
-    consul_server_cert_secret_arn  = aws_secretsmanager_secret.consul_server_cert.arn
-    consul_server_key_secret_arn   = aws_secretsmanager_secret.consul_server_key.arn
-    consul_gossip_key_secret_arn   = aws_secretsmanager_secret.consul_gossip_key.arn
+    vault_version                  = var.vault_version
+    vault_addr                     = local.vault_addr
+    vault_ca_cert                  = var.vault_ca_cert
+    vault_iam_server_id_header     = local.vault_iam_server_id_header
     config_server_consul_hcl       = local.config_server_consul_hcl
     config_server_server_hcl       = local.config_server_server_hcl
     config_server_acl_hcl          = local.config_server_acl_hcl
