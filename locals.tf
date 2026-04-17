@@ -6,7 +6,6 @@ locals {
   cluster_tag_value = var.project_name
   ebs_device_name   = "/dev/xvdf"
 
-  vault_url = "https://${var.vault_subdomain}.${var.route53_zone.name}"
   vault_tls_ca_bundle_ssm_parameter_name = coalesce(
     var.vault_tls_ca_bundle_ssm_parameter_name,
     "/${var.project_name}/vault/tls/ca-bundle",

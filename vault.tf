@@ -11,9 +11,9 @@ resource "vault_mount" "pki_consul" {
 resource "vault_pki_secret_backend_config_urls" "pki_consul" {
   backend = vault_mount.pki_consul.path
 
-  issuing_certificates    = ["${local.vault_url}:8200/v1/${vault_mount.pki_consul.path}/ca"]
-  crl_distribution_points = ["${local.vault_url}:8200/v1/${vault_mount.pki_consul.path}/crl"]
-  ocsp_servers            = ["${local.vault_url}:8200/v1/${vault_mount.pki_consul.path}/ocsp"]
+  issuing_certificates    = ["${var.vault_url}/v1/${vault_mount.pki_consul.path}/ca"]
+  crl_distribution_points = ["${var.vault_url}/v1/${vault_mount.pki_consul.path}/crl"]
+  ocsp_servers            = ["${var.vault_url}/v1/${vault_mount.pki_consul.path}/ocsp"]
 }
 
 resource "vault_pki_secret_backend_intermediate_cert_request" "pki_consul" {

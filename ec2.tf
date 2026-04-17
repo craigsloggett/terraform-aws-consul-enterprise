@@ -44,7 +44,7 @@ resource "aws_instance" "consul" {
     consul_license_secret_arn    = aws_secretsmanager_secret.consul_license.arn
     consul_gossip_key_secret_arn = aws_secretsmanager_secret.consul_gossip_key.arn
 
-    vault_addr               = local.vault_url
+    vault_addr               = var.vault_url
     vault_ca_bundle_ssm_name = local.vault_tls_ca_bundle_ssm_parameter_name
     vault_pki_mount          = var.vault_pki_mount
     vault_pki_role           = var.vault_pki_role

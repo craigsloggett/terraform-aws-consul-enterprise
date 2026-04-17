@@ -169,10 +169,9 @@ variable "consul_api_allowed_cidrs" {
 
 # Vault
 
-variable "vault_subdomain" {
+variable "vault_url" {
   type        = string
-  description = "Subdomain of the Vault cluster DNS record (e.g., \"vault\" for vault.<zone>)."
-  default     = "vault"
+  description = "Base URL of the Vault cluster (scheme and host, no port). For example: \"https://vault.example.com\"."
 }
 
 variable "vault_iam_role_name" {
