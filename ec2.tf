@@ -35,7 +35,7 @@ resource "aws_instance" "consul" {
     http_put_response_hop_limit = 1
   }
 
-  user_data = templatefile("${path.module}/templates/user-data.sh.tftpl", {
+  user_data = base64gzip(templatefile("${path.module}/templates/user-data.sh.tftpl", {
     consul_version               = var.consul_version
     vault_version                = var.vault_version
     ebs_device_name              = local.ebs_device_name
@@ -66,7 +66,7 @@ resource "aws_instance" "consul" {
     config_snapshot_agent_json     = local.config_snapshot_agent_json
     config_consul_service          = local.config_consul_service
     config_snapshot_agent_service  = local.config_snapshot_agent_service
-  })
+  }))
 
   tags = merge(var.common_tags, {
     Name                    = "${var.project_name}-consul-server-${count.index}"
