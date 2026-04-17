@@ -13,10 +13,10 @@ output "bastion_public_ip" {
   value       = aws_instance.bastion.public_ip
 }
 
-#output "consul_private_ips" {
-#  description = "Private IPs of the Consul nodes."
-#  value       = aws_instance.consul[*].private_ip
-#}
+output "consul_private_ips" {
+  description = "Private IPs of the Consul nodes."
+  value       = aws_instance.consul[*].private_ip
+}
 
 output "consul_snapshot_bucket" {
   description = "S3 bucket for Consul snapshots."

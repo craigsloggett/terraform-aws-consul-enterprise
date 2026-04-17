@@ -45,10 +45,10 @@ resource "aws_lb_listener" "consul" {
   }
 }
 
-#resource "aws_lb_target_group_attachment" "consul" {
-#  count = local.consul_node_count
-#
-#  target_group_arn = aws_lb_target_group.consul.arn
-#  target_id        = aws_instance.consul[count.index].id
-#  port             = 8501
-#}
+resource "aws_lb_target_group_attachment" "consul" {
+  count = local.consul_node_count
+
+  target_group_arn = aws_lb_target_group.consul.arn
+  target_id        = aws_instance.consul[count.index].id
+  port             = 8501
+}
