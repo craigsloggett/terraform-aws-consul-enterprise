@@ -175,6 +175,11 @@ variable "vault_subdomain" {
   default     = "vault"
 }
 
+variable "vault_iam_role_name" {
+  type        = string
+  description = "Name of the Vault server IAM role. This module grants the Vault server role `iam:GetRole` on the Consul server IAM role so Vault's AWS auth method can resolve the bound principal during login."
+}
+
 variable "vault_tls_ca_bundle_ssm_parameter_name" {
   type        = string
   description = "SSM parameter name holding the Vault PKI root+intermediate CA bundle. When null, defaults to /<project_name>/vault/tls/ca-bundle (the pattern used by terraform-aws-vault-enterprise when the Vault project_name matches this module's)."

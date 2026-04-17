@@ -35,7 +35,7 @@ resource "aws_instance" "consul" {
     http_put_response_hop_limit = 1
   }
 
-  user_data = base64gzip(templatefile("${path.module}/templates/user-data.sh.tftpl", {
+  user_data_base64 = base64gzip(templatefile("${path.module}/templates/user-data.sh.tftpl", {
     consul_version               = var.consul_version
     vault_version                = var.vault_version
     ebs_device_name              = local.ebs_device_name
@@ -76,6 +76,7 @@ resource "aws_instance" "consul" {
   depends_on = [
     aws_iam_role_policy.consul_secrets_manager,
     aws_iam_role_policy.consul_vault_ca_bundle,
+    aws_iam_role_policy.vault_resolve_consul_role,
     vault_aws_auth_backend_role.consul_server,
     vault_pki_secret_backend_role.consul_server,
     vault_pki_secret_backend_intermediate_set_signed.pki_consul,

@@ -86,3 +86,23 @@ resource "vault_aws_auth_backend_role" "consul_server" {
   token_ttl                = 14400 # 4h
   token_max_ttl            = 86400 # 24h
 }
+
+# Grant the Vault Server IAM Role Permission to Resolve the Consul Server Role
+#
+# Vault's AWS auth method calls iam:GetRole from the Vault server's own role
+# when resolving a bound IAM principal during login. Without this grant,
+# login attempts from Consul servers fail with an AccessDenied error.
+
+data "aws_iam_policy_document" "vault_resolve_consul_role" {
+  statement {
+    effect    = "Allow"
+    actions   = ["iam:GetRole"]
+    resources = [aws_iam_role.consul.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "vault_resolve_consul_role" {
+  name_prefix = "${var.project_name}-resolve-consul-"
+  role        = var.vault_iam_role_name
+  policy      = data.aws_iam_policy_document.vault_resolve_consul_role.json
+}
