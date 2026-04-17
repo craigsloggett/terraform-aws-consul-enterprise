@@ -67,11 +67,10 @@ resource "vault_pki_secret_backend_role" "consul_server" {
 resource "vault_policy" "consul_server" {
   name = "consul-server"
 
-  policy = <<-EOT
-    path "${vault_mount.pki_consul.path}/issue/${var.vault_pki_role}" {
-      capabilities = ["create", "update"]
-    }
-  EOT
+  policy = templatefile("${path.module}/templates/policies/consul-server.hcl.tftpl", {
+    pki_path = vault_mount.pki_consul.path
+    pki_role = var.vault_pki_role
+  })
 }
 
 # AWS Auth Role Bound to the Consul Server IAM Role
