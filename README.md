@@ -91,7 +91,7 @@ module "consul" {
 | <a name="input_vault_pki_role"></a> [vault\_pki\_role](#input\_vault\_pki\_role) | Name of the Vault PKI role used to issue Consul server certificates. | `string` | `"consul-server"` | no |
 | <a name="input_vault_tls_ca_bundle_ssm_parameter_name"></a> [vault\_tls\_ca\_bundle\_ssm\_parameter\_name](#input\_vault\_tls\_ca\_bundle\_ssm\_parameter\_name) | SSM parameter name holding the Vault PKI root+intermediate CA bundle. When null, defaults to /<project\_name>/vault/tls/ca-bundle (the pattern used by terraform-aws-vault-enterprise when the Vault project\_name matches this module's). | `string` | `null` | no |
 | <a name="input_vault_url"></a> [vault\_url](#input\_vault\_url) | Base URL of the Vault cluster (scheme and host, no port). For example: "https://vault.example.com". | `string` | n/a | yes |
-| <a name="input_vault_version"></a> [vault\_version](#input\_vault\_version) | Vault CLI version installed on Consul server nodes (used to authenticate to Vault and issue PKI certificates). | `string` | `"1.20.5"` | no |
+| <a name="input_vault_version"></a> [vault\_version](#input\_vault\_version) | Vault Enterprise release version (e.g., 1.21.4+ent). | `string` | `"1.21.4+ent"` | no |
 | <a name="input_vpc_cidr"></a> [vpc\_cidr](#input\_vpc\_cidr) | CIDR block for the VPC. | `string` | `"10.0.0.0/16"` | no |
 | <a name="input_vpc_private_subnets"></a> [vpc\_private\_subnets](#input\_vpc\_private\_subnets) | Private subnet CIDR blocks. | `list(string)` | <pre>[<br/>  "10.0.1.0/24",<br/>  "10.0.2.0/24",<br/>  "10.0.3.0/24"<br/>]</pre> | no |
 | <a name="input_vpc_public_subnets"></a> [vpc\_public\_subnets](#input\_vpc\_public\_subnets) | Public subnet CIDR blocks. | `list(string)` | <pre>[<br/>  "10.0.101.0/24",<br/>  "10.0.102.0/24",<br/>  "10.0.103.0/24"<br/>]</pre> | no |
@@ -177,7 +177,7 @@ module "consul" {
 | Name | Description |
 | ---- | ----------- |
 | <a name="output_bastion_public_ip"></a> [bastion\_public\_ip](#output\_bastion\_public\_ip) | Public IP of the bastion host. |
-| <a name="output_cluster_tag"></a> [cluster\_tag](#output\_cluster\_tag) | EC2 tag key and value used for Consul auto-join. |
+| <a name="output_consul_auto_join_ec2_tag"></a> [consul\_auto\_join\_ec2\_tag](#output\_consul\_auto\_join\_ec2\_tag) | EC2 tag key and value used for Consul auto-join. |
 | <a name="output_consul_ca_cert"></a> [consul\_ca\_cert](#output\_consul\_ca\_cert) | CA certificate for trusting the Consul TLS chain (Vault Consul intermediate CA). |
 | <a name="output_consul_private_ips"></a> [consul\_private\_ips](#output\_consul\_private\_ips) | Private IPs of the Consul nodes. |
 | <a name="output_consul_snapshot_bucket"></a> [consul\_snapshot\_bucket](#output\_consul\_snapshot\_bucket) | S3 bucket for Consul snapshots. |

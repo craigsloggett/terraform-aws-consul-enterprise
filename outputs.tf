@@ -64,7 +64,7 @@ output "public_subnet_ids" {
   value       = local.vpc.public_subnet_ids
 }
 
-output "cluster_tag" {
+output "consul_auto_join_ec2_tag" {
   description = "EC2 tag key and value used for Consul auto-join."
   value = {
     key   = local.cluster_tag_key

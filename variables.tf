@@ -229,8 +229,13 @@ variable "consul_server_cert_ttl" {
 
 variable "vault_version" {
   type        = string
-  description = "Vault CLI version installed on Consul server nodes (used to authenticate to Vault and issue PKI certificates)."
-  default     = "1.20.5"
+  description = "Vault Enterprise release version (e.g., 1.21.4+ent)."
+  default     = "1.21.4+ent"
+
+  validation {
+    condition     = can(regex("^\\d+\\.\\d+\\.\\d+\\+ent(\\.hsm)?(\\.fips1402)?$", var.vault_version))
+    error_message = "Must be a valid Vault Enterprise release version (e.g., 1.21.4+ent, 1.21.4+ent.hsm, 1.21.4+ent.fips1402)."
+  }
 }
 
 # Snapshots
