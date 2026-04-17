@@ -5,7 +5,7 @@ output "vpc_id" {
 
 output "consul_url" {
   description = "URL of the Consul cluster."
-  value       = "https://${local.consul_fqdn}:8501"
+  value       = "https://${local.consul_fqdn}"
 }
 
 output "bastion_public_ip" {
