@@ -6,8 +6,11 @@
 #
 # Assumes:
 #   - Ubuntu or Debian
-#   - IAM instance profile with permissions for Secrets Manager, S3, EC2
-#   - Secrets stored in AWS Secrets Manager
+#   - IAM instance profile with permissions for Secrets Manager, SSM, S3, EC2
+#   - Consul gossip key and Enterprise license stored in AWS Secrets Manager
+#   - Consul TLS materials issued on demand from Vault's PKI secrets engine
+#   - Vault AWS auth role bound to the instance's IAM role
+#   - Vault CA bundle published to AWS SSM Parameter Store
 
 # shellcheck disable=SC2034,SC2154,SC2170,SC2269
 # SC2034/SC2154:
@@ -42,6 +45,7 @@ ebs_data_filesystem="xfs"
 tls_ca_file="/opt/consul/tls/ca.crt"
 tls_cert_file="/opt/consul/tls/server.crt"
 tls_key_file="/opt/consul/tls/server.key"
+vault_ca_file="/opt/consul/tls/vault-ca.pem"
 
 # Snapshot Agent
 snapshot_config_file="/opt/consul/snapshot-agent.json"
@@ -52,10 +56,23 @@ aws_region="${region}"
 
 # AWS Secrets Manager (ARNs)
 secret_consul_license="${consul_license_secret_arn}"
-secret_consul_ca_cert="${consul_ca_cert_secret_arn}"
-secret_consul_server_cert="${consul_server_cert_secret_arn}"
-secret_consul_server_key="${consul_server_key_secret_arn}"
 secret_consul_gossip_key="${consul_gossip_key_secret_arn}"
+
+# AWS SSM Parameter Store
+vault_ca_bundle_ssm_name="${vault_ca_bundle_ssm_name}"
+
+# Vault
+vault_version="${vault_version}"
+vault_addr="${vault_addr}"
+vault_pki_mount="${vault_pki_mount}"
+vault_pki_role="${vault_pki_role}"
+vault_aws_auth_role="${vault_aws_auth_role}"
+consul_server_cert_ttl="${consul_server_cert_ttl}"
+
+# Cluster identity
+consul_fqdn="${consul_fqdn}"
+consul_datacenter="${consul_datacenter}"
+route53_zone_name="${route53_zone_name}"
 
 # Node identity
 node_id="${node_id}"
@@ -126,6 +143,19 @@ fetch_secret() {
 }
 
 # ---------------------------------------------------------------------------
+# AWS SSM Parameter Store helper
+# ---------------------------------------------------------------------------
+
+fetch_ssm_parameter() {
+  name="$${1}"
+  aws ssm get-parameter \
+    --name "$${name}" \
+    --region "$${aws_region}" \
+    --query 'Parameter.Value' \
+    --output text
+}
+
+# ---------------------------------------------------------------------------
 # System preparation
 # ---------------------------------------------------------------------------
 
@@ -135,7 +165,7 @@ prepare_system() {
   export DEBIAN_FRONTEND=noninteractive
 
   apt-get update -qq
-  apt-get install -y -qq unzip curl jq nvme-cli amazon-ec2-utils
+  apt-get install -y -qq unzip curl jq nvme-cli amazon-ec2-utils gnupg
 
   # Create consul system user (server processes run as consul)
   if ! id -u consul >/dev/null 2>&1; then
@@ -162,22 +192,30 @@ resolve_ebs_nvme_device() {
   # the short form (e.g. "sdf") on some versions and the full path on others.
   target_short="$${target_name#/dev/}"
 
-  # Globbing is disabled by set -f; re-enable for the device scan.
-  set +f
-  for nvme in /dev/nvme*n1; do
-    [ -e "$${nvme}" ] || continue
+  # 60 attempts x 10s = 10 minutes.
+  max_attempts=60
+  attempt=0
+  while [ "$${attempt}" -lt "$${max_attempts}" ]; do
+    attempt=$((attempt + 1))
+    # Globbing is disabled by set -f; re-enable for the device scan.
+    set +f
+    for nvme in /dev/nvme*n1; do
+      [ -e "$${nvme}" ] || continue
 
-    # ebsnvme-id -b prints the block device name the volume was attached as.
-    attached="$(ebsnvme-id -b "$${nvme}" 2>/dev/null)" || continue
-    attached_short="$${attached#/dev/}"
+      # ebsnvme-id -b prints the block device name the volume was attached as.
+      attached="$(ebsnvme-id -b "$${nvme}" 2>/dev/null)" || continue
+      attached_short="$${attached#/dev/}"
 
-    if [ "$${attached_short}" = "$${target_short}" ]; then
-      set -f
-      printf '%s' "$${nvme}"
-      return 0
-    fi
+      if [ "$${attached_short}" = "$${target_short}" ]; then
+        set -f
+        printf '%s' "$${nvme}"
+        return 0
+      fi
+    done
+    set -f
+
+    sleep 5
   done
-  set -f
 
   return 1
 }
@@ -225,25 +263,152 @@ mount_data_volume() {
 }
 
 # ---------------------------------------------------------------------------
+# HashiCorp release download + verification helpers
+# ---------------------------------------------------------------------------
+
+detect_system_architecture() {
+  machine="$(uname -m)"
+  case "$${machine}" in
+    x86_64) printf 'amd64' ;;
+    aarch64) printf 'arm64' ;;
+    *)
+      log_error "Unsupported architecture: $${machine}"
+      return 1
+      ;;
+  esac
+}
+
+import_hashicorp_pgp_key() {
+  tmp_dir="$${1}"
+
+  export GNUPGHOME="$${tmp_dir}/.gnupg"
+  mkdir -p "$${GNUPGHOME}"
+  chmod 0700 "$${GNUPGHOME}"
+
+  curl -fsSL -o "$${tmp_dir}/hashicorp.asc" \
+    https://www.hashicorp.com/.well-known/pgp-key.txt
+  gpg --quiet --import "$${tmp_dir}/hashicorp.asc"
+  printf '%s\n' "C874011F0AB405110D02105534365D9472D7468F:6:" | gpg --quiet --import-ownertrust
+}
+
+download_and_verify_release() {
+  product="$${1}"
+  version="$${2}"
+  arch="$${3}"
+  tmp_dir="$${4}"
+
+  base_url="https://releases.hashicorp.com/$${product}/$${version}"
+  zip_file="$${product}_$${version}_linux_$${arch}.zip"
+  sums_file="$${product}_$${version}_SHA256SUMS"
+  sig_file="$${product}_$${version}_SHA256SUMS.sig"
+
+  curl -fsSL -o "$${tmp_dir}/$${zip_file}" "$${base_url}/$${zip_file}"
+  curl -fsSL -o "$${tmp_dir}/$${sums_file}" "$${base_url}/$${sums_file}"
+  curl -fsSL -o "$${tmp_dir}/$${sig_file}" "$${base_url}/$${sig_file}"
+
+  import_hashicorp_pgp_key "$${tmp_dir}"
+
+  log_info "Verifying GPG signature for $${product} $${version}"
+  gpg --quiet --verify "$${tmp_dir}/$${sig_file}" "$${tmp_dir}/$${sums_file}"
+
+  log_info "Verifying SHA256 checksum for $${product} $${version}"
+  cd "$${tmp_dir}" || return 1
+  sha256sum -c --ignore-missing "$${sums_file}"
+  cd / || return 1
+}
+
+# ---------------------------------------------------------------------------
 # Install Consul Enterprise
 # ---------------------------------------------------------------------------
 
 install_consul() {
   log_info "Installing Consul Enterprise $${consul_version}"
+  tmp_dir="$(mktemp -d)"
 
-  consul_zip="consul_$${consul_version}_linux_amd64.zip"
-  consul_url="https://releases.hashicorp.com/consul/$${consul_version}/$${consul_zip}"
+  arch="$(detect_system_architecture)"
+  download_and_verify_release "consul" "$${consul_version}" "$${arch}" "$${tmp_dir}"
 
-  cd /tmp
-  curl -sSLO "$${consul_url}"
-  unzip -o "$${consul_zip}" -d /usr/local/bin
-  rm -f "$${consul_zip}"
+  unzip -o -q "$${tmp_dir}/consul_$${consul_version}_linux_$${arch}.zip" -d "$${tmp_dir}"
+  mv "$${tmp_dir}/consul" /usr/local/bin/consul
   chmod 0755 /usr/local/bin/consul
+  rm -rf "$${tmp_dir}"
+
   consul version
 }
 
 # ---------------------------------------------------------------------------
-# Fetch secrets and write sensitive material to disk
+# Install Vault CLI (used only to authenticate and issue PKI certificates)
+# ---------------------------------------------------------------------------
+
+install_vault() {
+  log_info "Installing Vault CLI $${vault_version}"
+  tmp_dir="$(mktemp -d)"
+
+  arch="$(detect_system_architecture)"
+  download_and_verify_release "vault" "$${vault_version}" "$${arch}" "$${tmp_dir}"
+
+  unzip -o -q "$${tmp_dir}/vault_$${vault_version}_linux_$${arch}.zip" -d "$${tmp_dir}"
+  mv "$${tmp_dir}/vault" /usr/local/bin/vault
+  chmod 0755 /usr/local/bin/vault
+  rm -rf "$${tmp_dir}"
+
+  vault version
+}
+
+# ---------------------------------------------------------------------------
+# Issue Consul server TLS materials from Vault PKI
+# ---------------------------------------------------------------------------
+
+issue_consul_tls_from_vault() {
+  log_info "Fetching Vault CA bundle from SSM ($${vault_ca_bundle_ssm_name})"
+
+  mkdir -p "$(dirname "$${vault_ca_file}")"
+  fetch_ssm_parameter "$${vault_ca_bundle_ssm_name}" >"$${vault_ca_file}"
+  chmod 0644 "$${vault_ca_file}"
+
+  export VAULT_ADDR="$${vault_addr}"
+  export VAULT_CACERT="$${vault_ca_file}"
+
+  log_info "Authenticating to Vault via AWS IAM auth"
+  vault_token="$(
+    vault login \
+      -format=json \
+      -method=aws \
+      role="$${vault_aws_auth_role}" |
+      jq -r '.auth.client_token'
+  )"
+  export VAULT_TOKEN="$${vault_token}"
+
+  log_info "Requesting Consul server certificate from $${vault_pki_mount}/issue/$${vault_pki_role}"
+  cert_json="$(
+    vault write -format=json "$${vault_pki_mount}/issue/$${vault_pki_role}" \
+      common_name="$${consul_fqdn}" \
+      alt_names="server.$${consul_datacenter}.consul,*.$${route53_zone_name},localhost" \
+      ip_sans="127.0.0.1" \
+      ttl="$${consul_server_cert_ttl}"
+  )"
+
+  mkdir -p "$(dirname "$${tls_ca_file}")"
+
+  # Assemble the full chain of trust — issuing intermediate(s) + root.
+  printf '%s\n' "$(printf '%s' "$${cert_json}" | jq -r '.data.issuing_ca')" >"$${tls_ca_file}"
+  ca_chain="$(printf '%s' "$${cert_json}" | jq -r 'if (.data.ca_chain // []) | length > 0 then .data.ca_chain[] else empty end')"
+  if [ -n "$${ca_chain}" ]; then
+    printf '%s\n' "$${ca_chain}" >>"$${tls_ca_file}"
+  fi
+
+  printf '%s\n' "$(printf '%s' "$${cert_json}" | jq -r '.data.certificate')" >"$${tls_cert_file}"
+  printf '%s\n' "$(printf '%s' "$${cert_json}" | jq -r '.data.private_key')" >"$${tls_key_file}"
+
+  chown consul:consul "$${tls_ca_file}" "$${tls_cert_file}" "$${tls_key_file}"
+  chmod 0640 "$${tls_ca_file}" "$${tls_cert_file}" "$${tls_key_file}"
+
+  # Drop the short-lived Vault token; the cert and key are on disk now.
+  unset VAULT_TOKEN
+}
+
+# ---------------------------------------------------------------------------
+# Fetch license + gossip key and write them to disk
 # ---------------------------------------------------------------------------
 
 write_secrets() {
@@ -251,23 +416,11 @@ write_secrets() {
 
   consul_license="$(fetch_secret "$${secret_consul_license}")"
   gossip_key="$(fetch_secret "$${secret_consul_gossip_key}")"
-  ca_cert="$(fetch_secret "$${secret_consul_ca_cert}")"
-  server_cert="$(fetch_secret "$${secret_consul_server_cert}")"
-  server_key="$(fetch_secret "$${secret_consul_server_key}")"
 
   # Write the license file
   printf '%s' "$${consul_license}" >"$${consul_license_path}"
   chown consul:consul "$${consul_license_path}"
   chmod 0640 "$${consul_license_path}"
-
-  # Write TLS certificates
-  mkdir -p "$(dirname "$${tls_ca_file}")"
-  printf '%s' "$${ca_cert}" >"$${tls_ca_file}"
-  printf '%s' "$${server_cert}" >"$${tls_cert_file}"
-  printf '%s' "$${server_key}" >"$${tls_key_file}"
-
-  chown consul:consul "$${tls_ca_file}" "$${tls_cert_file}" "$${tls_key_file}"
-  chmod 0640 "$${tls_ca_file}" "$${tls_cert_file}" "$${tls_key_file}"
 }
 
 # ---------------------------------------------------------------------------
@@ -414,7 +567,9 @@ main() {
   prepare_system
   mount_data_volume
   install_consul
+  install_vault
 
+  issue_consul_tls_from_vault
   write_secrets
   write_consul_config "$${private_ip}"
   write_consul_systemd_unit

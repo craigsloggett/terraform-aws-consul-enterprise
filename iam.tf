@@ -24,7 +24,7 @@ resource "aws_iam_instance_profile" "consul" {
   tags = merge(var.common_tags, { Name = "${var.project_name}-consul" })
 }
 
-# Secrets Manager (certs, license, gossip key)
+# Secrets Manager (license, gossip key)
 
 data "aws_iam_policy_document" "consul_secrets_manager" {
   statement {
@@ -32,9 +32,6 @@ data "aws_iam_policy_document" "consul_secrets_manager" {
     actions = ["secretsmanager:GetSecretValue"]
     resources = [
       aws_secretsmanager_secret.consul_license.arn,
-      aws_secretsmanager_secret.consul_ca_cert.arn,
-      aws_secretsmanager_secret.consul_server_cert.arn,
-      aws_secretsmanager_secret.consul_server_key.arn,
       aws_secretsmanager_secret.consul_gossip_key.arn,
     ]
   }
@@ -44,6 +41,24 @@ resource "aws_iam_role_policy" "consul_secrets_manager" {
   name_prefix = "${var.project_name}-secrets-"
   role        = aws_iam_role.consul.id
   policy      = data.aws_iam_policy_document.consul_secrets_manager.json
+}
+
+# SSM Parameter Store (Vault PKI managed TLS CA bundle)
+
+data "aws_iam_policy_document" "consul_vault_ca_bundle" {
+  statement {
+    effect  = "Allow"
+    actions = ["ssm:GetParameter"]
+    resources = [
+      "arn:aws:ssm:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parameter${local.vault_tls_ca_bundle_ssm_parameter_name}",
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "consul_vault_ca_bundle" {
+  name_prefix = "${var.project_name}-vault-ca-"
+  role        = aws_iam_role.consul.id
+  policy      = data.aws_iam_policy_document.consul_vault_ca_bundle.json
 }
 
 # Secrets Manager (Nomad ACL token — read/write during initialization)

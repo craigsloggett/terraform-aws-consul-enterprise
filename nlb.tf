@@ -35,7 +35,7 @@ resource "aws_lb_target_group" "consul" {
 
 resource "aws_lb_listener" "consul" {
   load_balancer_arn = aws_lb.consul.arn
-  port              = 8501
+  port              = 443
   protocol          = "TLS"
   certificate_arn   = aws_acm_certificate_validation.consul.certificate_arn
 

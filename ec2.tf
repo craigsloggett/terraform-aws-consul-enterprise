@@ -35,16 +35,26 @@ resource "aws_instance" "consul" {
     http_put_response_hop_limit = 1
   }
 
-  user_data = templatefile("${path.module}/templates/user-data.sh.tftpl", {
-    consul_version                 = var.consul_version
-    ebs_device_name                = local.ebs_device_name
-    node_id                        = "consul-${count.index}"
-    region                         = data.aws_region.current.region
-    consul_license_secret_arn      = aws_secretsmanager_secret.consul_license.arn
-    consul_ca_cert_secret_arn      = aws_secretsmanager_secret.consul_ca_cert.arn
-    consul_server_cert_secret_arn  = aws_secretsmanager_secret.consul_server_cert.arn
-    consul_server_key_secret_arn   = aws_secretsmanager_secret.consul_server_key.arn
-    consul_gossip_key_secret_arn   = aws_secretsmanager_secret.consul_gossip_key.arn
+  user_data_base64 = base64gzip(templatefile("${path.module}/templates/user-data.sh.tftpl", {
+    consul_version               = var.consul_version
+    vault_version                = var.vault_version
+    ebs_device_name              = local.ebs_device_name
+    node_id                      = "consul-${count.index}"
+    region                       = data.aws_region.current.region
+    consul_license_secret_arn    = aws_secretsmanager_secret.consul_license.arn
+    consul_gossip_key_secret_arn = aws_secretsmanager_secret.consul_gossip_key.arn
+
+    vault_addr               = var.vault_url
+    vault_ca_bundle_ssm_name = local.vault_tls_ca_bundle_ssm_parameter_name
+    vault_pki_mount          = var.vault_pki_mount
+    vault_pki_role           = var.vault_pki_role
+    vault_aws_auth_role      = var.vault_aws_auth_role
+    consul_server_cert_ttl   = var.consul_server_cert_ttl
+
+    consul_fqdn       = local.consul_fqdn
+    consul_datacenter = var.consul_datacenter
+    route53_zone_name = var.route53_zone.name
+
     config_server_consul_hcl       = local.config_server_consul_hcl
     config_server_server_hcl       = local.config_server_server_hcl
     config_server_acl_hcl          = local.config_server_acl_hcl
@@ -56,7 +66,7 @@ resource "aws_instance" "consul" {
     config_snapshot_agent_json     = local.config_snapshot_agent_json
     config_consul_service          = local.config_consul_service
     config_snapshot_agent_service  = local.config_snapshot_agent_service
-  })
+  }))
 
   tags = merge(var.common_tags, {
     Name                    = "${var.project_name}-consul-server-${count.index}"
@@ -65,6 +75,11 @@ resource "aws_instance" "consul" {
 
   depends_on = [
     aws_iam_role_policy.consul_secrets_manager,
+    aws_iam_role_policy.consul_vault_ca_bundle,
+    aws_iam_role_policy.vault_resolve_consul_role,
+    vault_aws_auth_backend_role.consul_server,
+    vault_pki_secret_backend_role.consul_server,
+    vault_pki_secret_backend_intermediate_set_signed.pki_consul,
   ]
 
   lifecycle {
