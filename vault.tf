@@ -85,6 +85,8 @@ resource "vault_aws_auth_backend_role" "consul_server" {
   token_policies           = [vault_policy.consul_server.name]
   token_ttl                = 14400 # 4h
   token_max_ttl            = 86400 # 24h
+
+  depends_on = [aws_iam_role_policy.vault_resolve_consul_role]
 }
 
 # Grant the Vault Server IAM Role Permission to Resolve the Consul Server Role
