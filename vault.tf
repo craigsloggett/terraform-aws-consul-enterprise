@@ -75,6 +75,11 @@ resource "vault_policy" "consul_server" {
 
 # AWS Auth Role Bound to the Consul Server IAM Role
 
+resource "time_sleep" "wait_vault_iam_propagation" {
+  depends_on      = [aws_iam_role_policy.vault_resolve_consul_role]
+  create_duration = "30s"
+}
+
 resource "vault_aws_auth_backend_role" "consul_server" {
   backend = "aws"
   role    = var.vault_aws_auth_role
@@ -85,7 +90,7 @@ resource "vault_aws_auth_backend_role" "consul_server" {
   token_ttl                = 14400 # 4h
   token_max_ttl            = 86400 # 24h
 
-  depends_on = [aws_iam_role_policy.vault_resolve_consul_role]
+  depends_on = [time_sleep.wait_vault_iam_propagation]
 }
 
 # Grant the Vault Server IAM Role Permission to Resolve the Consul Server Role
