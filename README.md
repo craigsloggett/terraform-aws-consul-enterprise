@@ -45,7 +45,7 @@ module "consul" {
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.0 |
 | <a name="requirement_time"></a> [time](#requirement\_time) | ~> 0.13 |
-| <a name="requirement_vault"></a> [vault](#requirement\_vault) | ~> 4.0 |
+| <a name="requirement_vault"></a> [vault](#requirement\_vault) | ~> 5.8 |
 
 ## Providers
 
@@ -54,7 +54,7 @@ module "consul" {
 | <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.0 |
 | <a name="provider_random"></a> [random](#provider\_random) | ~> 3.0 |
 | <a name="provider_time"></a> [time](#provider\_time) | ~> 0.13 |
-| <a name="provider_vault"></a> [vault](#provider\_vault) | ~> 4.0 |
+| <a name="provider_vault"></a> [vault](#provider\_vault) | ~> 5.8 |
 
 ## Inputs
 
