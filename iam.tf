@@ -31,7 +31,7 @@ data "aws_iam_policy_document" "consul_secrets_manager" {
     effect  = "Allow"
     actions = ["secretsmanager:GetSecretValue"]
     resources = [
-      aws_secretsmanager_secret.consul_license.arn,
+      aws_secretsmanager_secret.consul_enterprise_license.arn,
       aws_secretsmanager_secret.consul_gossip_key.arn,
     ]
   }

@@ -23,7 +23,7 @@ output "consul_private_ips" {
   value       = aws_instance.consul[*].private_ip
 }
 
-output "consul_snapshot_bucket" {
+output "consul_snapshots_bucket" {
   description = "S3 bucket for Consul snapshots."
   value       = aws_s3_bucket.consul_snapshots.id
 }
