@@ -9,7 +9,7 @@ output "consul_url" {
 }
 
 output "consul_version" {
-  description = "Consul Enterprise release version (e.g., 1.22.6+ent)."
+  description = "Consul Enterprise version deployed."
   value       = var.consul_version
 }
 
