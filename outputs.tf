@@ -8,6 +8,11 @@ output "consul_url" {
   value       = "https://${local.consul_fqdn}"
 }
 
+output "consul_version" {
+  description = "Consul Enterprise release version (e.g., 1.22.6+ent)."
+  value       = var.consul_version
+}
+
 output "bastion_public_ip" {
   description = "Public IP of the bastion host."
   value       = aws_instance.bastion.public_ip
