@@ -13,9 +13,9 @@ output "consul_private_ips" {
   value       = module.consul.consul_private_ips
 }
 
-output "consul_snapshot_bucket" {
+output "consul_snapshots_bucket" {
   description = "S3 bucket for Consul snapshots."
-  value       = module.consul.consul_snapshot_bucket
+  value       = module.consul.consul_snapshots_bucket
 }
 
 output "ec2_ami_name" {

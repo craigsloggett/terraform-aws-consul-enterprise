@@ -485,25 +485,25 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
-# Generate snapshot agent configuration (Enterprise)
+# Generate Consul Snapshot Agent configuration (Enterprise)
 # ---------------------------------------------------------------------------
 
 configure_snapshot_agent() {
-  log_info "Writing snapshot agent configuration"
+  log_info "Writing Consul Snapshot Agent configuration"
 
-  # Write the snapshot agent configuration (must be JSON, not HCL).
+  # Write the Consul Snapshot Agent configuration (must be JSON, not HCL).
   cat >"$${snapshot_config_file}" <<'EOF'
 ${config_snapshot_agent_json}
 EOF
   chown consul:consul "$${snapshot_config_file}"
   chmod 0640 "$${snapshot_config_file}"
 
-  # Write the token placeholder for the snapshot agent.
+  # Write the token placeholder for the Consul Snapshot Agent.
   printf 'CONSUL_HTTP_TOKEN=\n' >"$${snapshot_token_file}"
   chown consul:consul "$${snapshot_token_file}"
   chmod 0600 "$${snapshot_token_file}"
 
-  # Write the systemd unit for the snapshot agent.
+  # Write the systemd unit for the Consul Snapshot Agent.
   cat >/etc/systemd/system/consul-snapshot-agent.service <<'EOF'
 ${config_snapshot_agent_service}
 EOF
@@ -544,7 +544,7 @@ start_services() {
     log_warn "Consul did not become healthy within timeout"
   fi
 
-  # Snapshot agent is not started automatically.
+  # Consul Snapshot Agent is not started automatically.
   # Its ACL token must be provisioned after cluster bootstrap.
   # Once the token is set in the snapshot-token file, enable and start manually:
   #   systemctl enable --now consul-snapshot-agent

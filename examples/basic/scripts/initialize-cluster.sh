@@ -25,7 +25,7 @@ read_terraform_outputs() {
   ami_name=$(cd "${repo_root}" && terraform output -raw ec2_ami_name)
   nomad_server_service_name=$(cd "${repo_root}" && terraform output -raw nomad_server_service_name)
   nomad_client_service_name=$(cd "${repo_root}" && terraform output -raw nomad_client_service_name)
-  nomad_snapshot_service_name=$(cd "${repo_root}" && terraform output -raw nomad_snapshot_service_name)
+  nomad_operator_snapshot_agent_service_name=$(cd "${repo_root}" && terraform output -raw nomad_operator_snapshot_agent_service_name)
 
   first_consul_ip=$(printf '%s\n' "${consul_ips}" | head -1)
 
@@ -160,7 +160,7 @@ create_nomad_token() {
     -H "X-Consul-Token: ${bootstrap_token}" \
     --data '{
       "Name": "nomad-agent",
-      "Rules": "node_prefix \"\" { policy = \"write\" }\nservice_prefix \"\" { policy = \"read\" }\nservice \"'"${nomad_server_service_name}"'\" { policy = \"write\" }\nservice \"'"${nomad_client_service_name}"'\" { policy = \"write\" }\nservice \"'"${nomad_snapshot_service_name}"'\" { policy = \"write\" }\nagent_prefix \"\" { policy = \"read\" }\nsession_prefix \"\" { policy = \"write\" }\nkey_prefix \"nomad-snapshot/\" { policy = \"write\" }"
+      "Rules": "node_prefix \"\" { policy = \"write\" }\nservice_prefix \"\" { policy = \"read\" }\nservice \"'"${nomad_server_service_name}"'\" { policy = \"write\" }\nservice \"'"${nomad_client_service_name}"'\" { policy = \"write\" }\nservice \"'"${nomad_operator_snapshot_agent_service_name}"'\" { policy = \"write\" }\nagent_prefix \"\" { policy = \"read\" }\nsession_prefix \"\" { policy = \"write\" }\nkey_prefix \"nomad-operator-snapshot-agent/\" { policy = \"write\" }"
     }' >/dev/null 2>&1 || true
 
   # Create the token with the policy.
@@ -189,18 +189,18 @@ create_nomad_token() {
 }
 
 configure_snapshot_agent() {
-  log "Configuring snapshot agent token on all nodes."
+  log "Configuring Consul Snapshot Agent token on all nodes."
 
   init_file="$(cd "$(dirname "$0")" && pwd)/consul-init.json"
   bootstrap_token=$(jq -r '.SecretID' "${init_file}")
 
   for ip in ${consul_ips}; do
-    log "  Writing snapshot token on ${ip}."
+    log "  Writing Consul Snapshot Agent token on ${ip}."
     remote_exec "${ip}" \
       "sudo sed -i 's|^CONSUL_HTTP_TOKEN=.*|CONSUL_HTTP_TOKEN=${bootstrap_token}|' /opt/consul/snapshot-token && sudo systemctl enable --now consul-snapshot-agent"
   done
 
-  log "Snapshot agent started on all nodes."
+  log "Consul Snapshot Agent started on all nodes."
 }
 
 main() {

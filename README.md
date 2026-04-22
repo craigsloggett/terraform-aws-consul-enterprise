@@ -29,11 +29,11 @@ module "consul" {
   # tflint-ignore: terraform_module_pinned_source
   source = "git::https://github.com/craigsloggett/terraform-aws-consul-enterprise"
 
-  project_name      = "consul-enterprise"
-  route53_zone      = data.aws_route53_zone.selected
-  consul_license    = var.consul_license
-  ec2_key_pair_name = var.ec2_key_pair_name
-  ec2_ami           = data.aws_ami.debian
+  project_name              = "consul-enterprise"
+  route53_zone              = data.aws_route53_zone.selected
+  consul_enterprise_license = var.consul_enterprise_license
+  ec2_key_pair_name         = var.ec2_key_pair_name
+  ec2_ami                   = data.aws_ami.debian
 }
 ```
 
@@ -66,7 +66,7 @@ module "consul" {
 | <a name="input_consul_api_allowed_cidrs"></a> [consul\_api\_allowed\_cidrs](#input\_consul\_api\_allowed\_cidrs) | CIDR blocks allowed to reach the Consul API (port 8501) from outside the VPC. Only effective when nlb\_internal is false. | `list(string)` | `[]` | no |
 | <a name="input_consul_datacenter"></a> [consul\_datacenter](#input\_consul\_datacenter) | Consul datacenter name. | `string` | `"dc1"` | no |
 | <a name="input_consul_ebs_volume_size"></a> [consul\_ebs\_volume\_size](#input\_consul\_ebs\_volume\_size) | Size in GiB of the EBS volume for Consul Raft storage. | `number` | `100` | no |
-| <a name="input_consul_license"></a> [consul\_license](#input\_consul\_license) | Consul Enterprise license string. | `string` | n/a | yes |
+| <a name="input_consul_enterprise_license"></a> [consul\_enterprise\_license](#input\_consul\_enterprise\_license) | Consul Enterprise license string. | `string` | n/a | yes |
 | <a name="input_consul_server_cert_ttl"></a> [consul\_server\_cert\_ttl](#input\_consul\_server\_cert\_ttl) | TTL for Consul server certificates issued by Vault. | `string` | `"24h"` | no |
 | <a name="input_consul_server_instance_type"></a> [consul\_server\_instance\_type](#input\_consul\_server\_instance\_type) | EC2 instance type for Consul server nodes. | `string` | `"m5.large"` | no |
 | <a name="input_consul_snapshot_interval"></a> [consul\_snapshot\_interval](#input\_consul\_snapshot\_interval) | Interval between automated Raft snapshots (e.g., 1h, 30m, 24h). | `string` | `"1h"` | no |
@@ -78,8 +78,8 @@ module "consul" {
 | <a name="input_existing_vpc"></a> [existing\_vpc](#input\_existing\_vpc) | Existing VPC to deploy into. When null (default), a new VPC is created.<br/>The existing VPC must already have the required VPC endpoints:<br/>Secrets Manager and EC2 (Interface), S3 (Gateway). | <pre>object({<br/>    vpc_id             = string<br/>    private_subnet_ids = list(string)<br/>    public_subnet_ids  = list(string)<br/>  })</pre> | `null` | no |
 | <a name="input_nlb_internal"></a> [nlb\_internal](#input\_nlb\_internal) | Whether the NLB is internal. | `bool` | `true` | no |
 | <a name="input_nomad_client_service_name"></a> [nomad\_client\_service\_name](#input\_nomad\_client\_service\_name) | Consul service name Nomad clients will register as. | `string` | `"nomad-client"` | no |
+| <a name="input_nomad_operator_snapshot_agent_service_name"></a> [nomad\_operator\_snapshot\_agent\_service\_name](#input\_nomad\_operator\_snapshot\_agent\_service\_name) | Consul service name the Nomad Operator Snapshot Agent will register as. | `string` | `"nomad-operator-snapshot-agent"` | no |
 | <a name="input_nomad_server_service_name"></a> [nomad\_server\_service\_name](#input\_nomad\_server\_service\_name) | Consul service name Nomad servers will register as. | `string` | `"nomad-server"` | no |
-| <a name="input_nomad_snapshot_service_name"></a> [nomad\_snapshot\_service\_name](#input\_nomad\_snapshot\_service\_name) | Consul service name the Nomad snapshot agent will register as. | `string` | `"nomad-snapshot"` | no |
 | <a name="input_project_name"></a> [project\_name](#input\_project\_name) | Name prefix for all resources. | `string` | n/a | yes |
 | <a name="input_route53_zone"></a> [route53\_zone](#input\_route53\_zone) | Route 53 hosted zone for the Consul DNS record. | <pre>object({<br/>    zone_id = string<br/>    name    = string<br/>  })</pre> | n/a | yes |
 | <a name="input_vault_aws_auth_role"></a> [vault\_aws\_auth\_role](#input\_vault\_aws\_auth\_role) | Name of the Vault AWS auth role bound to the Consul server IAM role. | `string` | `"consul-server"` | no |
@@ -125,11 +125,11 @@ module "consul" {
 | [aws_s3_bucket_public_access_block.consul_snapshots](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_public_access_block) | resource |
 | [aws_s3_bucket_server_side_encryption_configuration.consul_snapshots](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_server_side_encryption_configuration) | resource |
 | [aws_s3_bucket_versioning.consul_snapshots](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_versioning) | resource |
+| [aws_secretsmanager_secret.consul_enterprise_license](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
 | [aws_secretsmanager_secret.consul_gossip_key](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
-| [aws_secretsmanager_secret.consul_license](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
 | [aws_secretsmanager_secret.consul_nomad_token](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
+| [aws_secretsmanager_secret_version.consul_enterprise_license](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
 | [aws_secretsmanager_secret_version.consul_gossip_key](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
-| [aws_secretsmanager_secret_version.consul_license](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
 | [aws_security_group.bastion](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
 | [aws_security_group.consul](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
 | [aws_security_group.vpc_endpoints](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
@@ -180,7 +180,7 @@ module "consul" {
 | <a name="output_consul_auto_join_ec2_tag"></a> [consul\_auto\_join\_ec2\_tag](#output\_consul\_auto\_join\_ec2\_tag) | EC2 tag key and value used for Consul auto-join. |
 | <a name="output_consul_ca_cert"></a> [consul\_ca\_cert](#output\_consul\_ca\_cert) | CA certificate for trusting the Consul TLS chain (Vault Consul intermediate CA). |
 | <a name="output_consul_private_ips"></a> [consul\_private\_ips](#output\_consul\_private\_ips) | Private IPs of the Consul nodes. |
-| <a name="output_consul_snapshot_bucket"></a> [consul\_snapshot\_bucket](#output\_consul\_snapshot\_bucket) | S3 bucket for Consul snapshots. |
+| <a name="output_consul_snapshots_bucket"></a> [consul\_snapshots\_bucket](#output\_consul\_snapshots\_bucket) | S3 bucket for Consul snapshots. |
 | <a name="output_consul_target_group_arn"></a> [consul\_target\_group\_arn](#output\_consul\_target\_group\_arn) | ARN of the Consul NLB target group. |
 | <a name="output_consul_url"></a> [consul\_url](#output\_consul\_url) | URL of the Consul cluster. |
 | <a name="output_consul_version"></a> [consul\_version](#output\_consul\_version) | Consul Enterprise version deployed. |
@@ -188,8 +188,8 @@ module "consul" {
 | <a name="output_ec2_ami_name"></a> [ec2\_ami\_name](#output\_ec2\_ami\_name) | Name of the AMI used for EC2 instances. |
 | <a name="output_gossip_key_secret"></a> [gossip\_key\_secret](#output\_gossip\_key\_secret) | Secrets Manager secret containing the Consul gossip encryption key. |
 | <a name="output_nomad_client_service_name"></a> [nomad\_client\_service\_name](#output\_nomad\_client\_service\_name) | Consul service name Nomad clients will register as. |
+| <a name="output_nomad_operator_snapshot_agent_service_name"></a> [nomad\_operator\_snapshot\_agent\_service\_name](#output\_nomad\_operator\_snapshot\_agent\_service\_name) | Consul service name the Nomad Operator Snapshot Agent will register as. |
 | <a name="output_nomad_server_service_name"></a> [nomad\_server\_service\_name](#output\_nomad\_server\_service\_name) | Consul service name Nomad servers will register as. |
-| <a name="output_nomad_snapshot_service_name"></a> [nomad\_snapshot\_service\_name](#output\_nomad\_snapshot\_service\_name) | Consul service name the Nomad snapshot agent will register as. |
 | <a name="output_nomad_token_secret"></a> [nomad\_token\_secret](#output\_nomad\_token\_secret) | Secrets Manager secret containing the Consul ACL token for Nomad. |
 | <a name="output_private_subnet_ids"></a> [private\_subnet\_ids](#output\_private\_subnet\_ids) | Private subnet IDs used by the Consul cluster. |
 | <a name="output_public_subnet_ids"></a> [public\_subnet\_ids](#output\_public\_subnet\_ids) | Public subnet IDs used by the Consul cluster. |

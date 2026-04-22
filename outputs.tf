@@ -23,7 +23,7 @@ output "consul_private_ips" {
   value       = aws_instance.consul[*].private_ip
 }
 
-output "consul_snapshot_bucket" {
+output "consul_snapshots_bucket" {
   description = "S3 bucket for Consul snapshots."
   value       = aws_s3_bucket.consul_snapshots.id
 }
@@ -92,7 +92,7 @@ output "nomad_client_service_name" {
   value       = var.nomad_client_service_name
 }
 
-output "nomad_snapshot_service_name" {
-  description = "Consul service name the Nomad snapshot agent will register as."
-  value       = var.nomad_snapshot_service_name
+output "nomad_operator_snapshot_agent_service_name" {
+  description = "Consul service name the Nomad Operator Snapshot Agent will register as."
+  value       = var.nomad_operator_snapshot_agent_service_name
 }

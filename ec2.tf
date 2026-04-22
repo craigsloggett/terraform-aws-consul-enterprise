@@ -41,7 +41,7 @@ resource "aws_instance" "consul" {
     ebs_device_name              = local.ebs_device_name
     node_id                      = "consul-${count.index}"
     region                       = data.aws_region.current.region
-    consul_license_secret_arn    = aws_secretsmanager_secret.consul_license.arn
+    consul_license_secret_arn    = aws_secretsmanager_secret.consul_enterprise_license.arn
     consul_gossip_key_secret_arn = aws_secretsmanager_secret.consul_gossip_key.arn
 
     vault_addr               = var.vault_url

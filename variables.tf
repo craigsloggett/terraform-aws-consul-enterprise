@@ -18,7 +18,7 @@ variable "route53_zone" {
   description = "Route 53 hosted zone for the Consul DNS record."
 }
 
-variable "consul_license" {
+variable "consul_enterprise_license" {
   type        = string
   description = "Consul Enterprise license string."
   sensitive   = true
@@ -127,6 +127,11 @@ variable "consul_version" {
   type        = string
   description = "Consul Enterprise release version (e.g., 1.22.6+ent)."
   default     = "1.22.6+ent"
+
+  validation {
+    condition     = can(regex("^\\d+\\.\\d+\\.\\d+\\+ent$", var.consul_version))
+    error_message = "Must be a valid Consul Enterprise release version (e.g., 1.22.6+ent)."
+  }
 }
 
 variable "consul_datacenter" {
@@ -147,10 +152,10 @@ variable "nomad_client_service_name" {
   default     = "nomad-client"
 }
 
-variable "nomad_snapshot_service_name" {
-  description = "Consul service name the Nomad snapshot agent will register as."
+variable "nomad_operator_snapshot_agent_service_name" {
+  description = "Consul service name the Nomad Operator Snapshot Agent will register as."
   type        = string
-  default     = "nomad-snapshot"
+  default     = "nomad-operator-snapshot-agent"
 }
 
 # NLB

@@ -6,16 +6,16 @@ resource "random_id" "gossip_key" {
 
 # Secrets Manager
 
-resource "aws_secretsmanager_secret" "consul_license" {
+resource "aws_secretsmanager_secret" "consul_enterprise_license" {
   name_prefix = "${var.project_name}-consul-license-"
   description = "Consul Enterprise license"
 
   tags = merge(var.common_tags, { Name = "${var.project_name}-consul-license" })
 }
 
-resource "aws_secretsmanager_secret_version" "consul_license" {
-  secret_id     = aws_secretsmanager_secret.consul_license.id
-  secret_string = var.consul_license
+resource "aws_secretsmanager_secret_version" "consul_enterprise_license" {
+  secret_id     = aws_secretsmanager_secret.consul_enterprise_license.id
+  secret_string = var.consul_enterprise_license
 }
 
 resource "aws_secretsmanager_secret" "consul_gossip_key" {
