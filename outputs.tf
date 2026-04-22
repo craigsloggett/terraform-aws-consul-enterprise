@@ -92,7 +92,7 @@ output "nomad_client_service_name" {
   value       = var.nomad_client_service_name
 }
 
-output "nomad_snapshot_service_name" {
-  description = "Consul service name the Nomad snapshot agent will register as."
-  value       = var.nomad_snapshot_service_name
+output "nomad_operator_snapshot_agent_service_name" {
+  description = "Consul service name the Nomad Operator Snapshot Agent will register as."
+  value       = var.nomad_operator_snapshot_agent_service_name
 }
