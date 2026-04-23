@@ -61,6 +61,63 @@ resource "aws_iam_role_policy" "consul_vault_ca_bundle" {
   policy      = data.aws_iam_policy_document.consul_vault_ca_bundle.json
 }
 
+# SSM Parameter Store (cluster coordination)
+
+data "aws_iam_policy_document" "consul_cluster_state" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "ssm:GetParameter",
+      "ssm:PutParameter",
+    ]
+    resources = [aws_ssm_parameter.consul_cluster_state.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "consul_cluster_state" {
+  name_prefix = "${var.project_name}-cluster-state-"
+  role        = aws_iam_role.consul.id
+  policy      = data.aws_iam_policy_document.consul_cluster_state.json
+}
+
+# Secrets Manager (bootstrap token — read/write during initialization)
+
+data "aws_iam_policy_document" "consul_bootstrap_token" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:PutSecretValue",
+    ]
+    resources = [aws_secretsmanager_secret.consul_bootstrap_token.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "consul_bootstrap_token" {
+  name_prefix = "${var.project_name}-bootstrap-token-"
+  role        = aws_iam_role.consul.id
+  policy      = data.aws_iam_policy_document.consul_bootstrap_token.json
+}
+
+# Secrets Manager (agent token — read/write during initialization)
+
+data "aws_iam_policy_document" "consul_agent_token" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:PutSecretValue",
+    ]
+    resources = [aws_secretsmanager_secret.consul_agent_token.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "consul_agent_token" {
+  name_prefix = "${var.project_name}-agent-token-"
+  role        = aws_iam_role.consul.id
+  policy      = data.aws_iam_policy_document.consul_agent_token.json
+}
+
 # Secrets Manager (Nomad ACL token — read/write during initialization)
 
 data "aws_iam_policy_document" "consul_nomad_token" {

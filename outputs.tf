@@ -54,6 +54,11 @@ output "gossip_key_secret" {
   value       = aws_secretsmanager_secret.consul_gossip_key
 }
 
+output "bootstrap_token_secret" {
+  description = "Secrets Manager secret containing the Consul ACL bootstrap token."
+  value       = aws_secretsmanager_secret.consul_bootstrap_token
+}
+
 output "nomad_token_secret" {
   description = "Secrets Manager secret containing the Consul ACL token for Nomad."
   value       = aws_secretsmanager_secret.consul_nomad_token

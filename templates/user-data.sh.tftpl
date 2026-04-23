@@ -77,6 +77,21 @@ route53_zone_name="${route53_zone_name}"
 # Node identity
 node_id="${node_id}"
 
+# Cluster coordination
+consul_cluster_tag_key="${consul_cluster_tag_key}"
+consul_cluster_tag_value="${consul_cluster_tag_value}"
+consul_cluster_state_ssm_name="${consul_cluster_state_ssm_name}"
+
+# AWS Secrets Manager (ARNs) — bootstrap tokens
+secret_consul_bootstrap_token="${consul_bootstrap_token_secret_arn}"
+secret_consul_agent_token="${consul_agent_token_secret_arn}"
+secret_consul_nomad_token="${consul_nomad_token_secret_arn}"
+
+# Nomad service names (for ACL policy rules)
+nomad_server_service_name="${nomad_server_service_name}"
+nomad_client_service_name="${nomad_client_service_name}"
+nomad_operator_snapshot_agent_service_name="${nomad_operator_snapshot_agent_service_name}"
+
 # EC2 metadata service (IMDSv2)
 imds_endpoint="http://169.254.169.254"
 imds_token_ttl="21600"
@@ -142,6 +157,17 @@ fetch_secret() {
     --output text
 }
 
+put_secret() {
+  secret_arn="$${1}"
+  secret_value="$${2}"
+
+  aws secretsmanager put-secret-value \
+    --secret-id "$${secret_arn}" \
+    --secret-string "$${secret_value}" \
+    --region "$${aws_region}" \
+    >/dev/null
+}
+
 # ---------------------------------------------------------------------------
 # AWS SSM Parameter Store helper
 # ---------------------------------------------------------------------------
@@ -153,6 +179,54 @@ fetch_ssm_parameter() {
     --region "$${aws_region}" \
     --query 'Parameter.Value' \
     --output text
+}
+
+put_ssm_parameter() {
+  name="$${1}"
+  value="$${2}"
+
+  aws ssm put-parameter \
+    --name "$${name}" \
+    --value "$${value}" \
+    --overwrite \
+    --region "$${aws_region}" \
+    >/dev/null
+}
+
+# ---------------------------------------------------------------------------
+# Consul cluster discovery (bootstrap node election)
+# ---------------------------------------------------------------------------
+
+is_bootstrap_node() {
+  instance_id="$(get_instance_id)"
+
+  all_ids="$(
+    aws ec2 describe-instances \
+      --filters \
+      "Name=tag:$${consul_cluster_tag_key},Values=$${consul_cluster_tag_value}" \
+      "Name=instance-state-name,Values=running" \
+      --query "Reservations[].Instances[].InstanceId" \
+      --region "$${aws_region}" \
+      --output text
+  )"
+
+  lowest_id="$(printf '%s' "$${all_ids}" | tr '\t' '\n' | sort | head -1)"
+
+  [ "$${instance_id}" = "$${lowest_id}" ]
+}
+
+get_consul_node_role() {
+  cluster_state="$(fetch_ssm_parameter "$${consul_cluster_state_ssm_name}" 2>/dev/null)" || cluster_state=""
+
+  if [ "$${cluster_state}" = "Ready" ]; then
+    printf 'follower'
+  else
+    if is_bootstrap_node; then
+      printf 'bootstrap'
+    else
+      printf 'follower'
+    fi
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -512,6 +586,139 @@ EOF
 }
 
 # ---------------------------------------------------------------------------
+# Consul CLI environment
+# ---------------------------------------------------------------------------
+
+configure_consul_env() {
+  export CONSUL_HTTP_ADDR="https://127.0.0.1:8501"
+  export CONSUL_CACERT="$${tls_ca_file}"
+  export CONSUL_CLIENT_CERT="$${tls_cert_file}"
+  export CONSUL_CLIENT_KEY="$${tls_key_file}"
+}
+
+# ---------------------------------------------------------------------------
+# ACL bootstrap and token provisioning
+# ---------------------------------------------------------------------------
+
+bootstrap_consul_acl() {
+  log_info "Bootstrapping Consul ACL system"
+
+  bootstrap_output="$(consul acl bootstrap -format=json)"
+  bootstrap_token="$(printf '%s' "$${bootstrap_output}" | jq -r '.SecretID')"
+
+  log_info "Storing bootstrap token in Secrets Manager"
+  put_secret "$${secret_consul_bootstrap_token}" "$${bootstrap_token}"
+
+  export CONSUL_HTTP_TOKEN="$${bootstrap_token}"
+
+  log_info "ACL bootstrap complete"
+}
+
+create_agent_token() {
+  log_info "Creating consul-server-agent ACL policy"
+
+  consul acl policy create \
+    -name "consul-server-agent" \
+    -rules 'node_prefix "" { policy = "write" }
+service_prefix "" { policy = "read" }' \
+    >/dev/null 2>&1 || true
+
+  log_info "Creating agent token"
+  agent_token="$(
+    consul acl token create \
+      -description "Consul server agent token" \
+      -policy-name "consul-server-agent" \
+      -format=json | jq -r '.SecretID'
+  )"
+
+  log_info "Storing agent token in Secrets Manager"
+  put_secret "$${secret_consul_agent_token}" "$${agent_token}"
+
+  log_info "Agent token created and stored"
+}
+
+apply_agent_token() {
+  log_info "Fetching agent token from Secrets Manager"
+  agent_token="$(fetch_secret "$${secret_consul_agent_token}")"
+
+  log_info "Setting agent token on local node"
+  consul acl set-agent-token agent "$${agent_token}"
+
+  log_info "Agent token applied"
+}
+
+create_nomad_token() {
+  log_info "Creating nomad-agent ACL policy"
+
+  consul acl policy create \
+    -name "nomad-agent" \
+    -rules "node_prefix \"\" { policy = \"write\" }
+service_prefix \"\" { policy = \"read\" }
+service \"$${nomad_server_service_name}\" { policy = \"write\" }
+service \"$${nomad_client_service_name}\" { policy = \"write\" }
+service \"$${nomad_operator_snapshot_agent_service_name}\" { policy = \"write\" }
+agent_prefix \"\" { policy = \"read\" }
+session_prefix \"\" { policy = \"write\" }
+key_prefix \"nomad-operator-snapshot-agent/\" { policy = \"write\" }" \
+    >/dev/null 2>&1 || true
+
+  log_info "Creating Nomad token"
+  nomad_token="$(
+    consul acl token create \
+      -description "Nomad agent token" \
+      -policy-name "nomad-agent" \
+      -format=json | jq -r '.SecretID'
+  )"
+
+  log_info "Storing Nomad token in Secrets Manager"
+  put_secret "$${secret_consul_nomad_token}" "$${nomad_token}"
+
+  log_info "Nomad token created and stored"
+}
+
+mark_cluster_ready() {
+  log_info "Writing cluster state: Ready"
+  put_ssm_parameter "$${consul_cluster_state_ssm_name}" "Ready"
+}
+
+wait_for_bootstrap() {
+  log_info "Waiting for the bootstrap node to initialize the ACL system"
+
+  # 60 attempts x 5s = 5 minutes.
+  max_attempts=60
+  attempt=0
+  while [ "$${attempt}" -lt "$${max_attempts}" ]; do
+    attempt=$((attempt + 1))
+
+    state="$(fetch_ssm_parameter "$${consul_cluster_state_ssm_name}")" || true
+    if [ "$${state}" = "Ready" ]; then
+      log_info "Cluster is initialized, proceeding"
+      return 0
+    fi
+
+    log_info "Cluster is not initialized (attempt $${attempt}/$${max_attempts}), waiting"
+    sleep 5
+  done
+
+  log_error "Cluster was not initialized after $${max_attempts} attempts"
+  return 1
+}
+
+start_snapshot_agent() {
+  log_info "Configuring snapshot agent with bootstrap token"
+
+  bootstrap_token="$(fetch_secret "$${secret_consul_bootstrap_token}")"
+
+  printf 'CONSUL_HTTP_TOKEN=%s\n' "$${bootstrap_token}" >"$${snapshot_token_file}"
+  chown consul:consul "$${snapshot_token_file}"
+  chmod 0600 "$${snapshot_token_file}"
+
+  systemctl enable --now consul-snapshot-agent
+
+  log_info "Snapshot agent started"
+}
+
+# ---------------------------------------------------------------------------
 # Enable and start services
 # ---------------------------------------------------------------------------
 
@@ -544,11 +751,6 @@ start_services() {
     log_warn "Consul did not become healthy within timeout"
   fi
 
-  # Consul Snapshot Agent is not started automatically.
-  # Its ACL token must be provisioned after cluster bootstrap.
-  # Once the token is set in the snapshot-token file, enable and start manually:
-  #   systemctl enable --now consul-snapshot-agent
-
   log_info "All services started"
 }
 
@@ -575,7 +777,34 @@ main() {
   write_consul_systemd_unit
   configure_snapshot_agent
 
+  # Determine this node's role before starting services.
+  consul_node_role="$(get_consul_node_role)"
+  log_info "Node role: $${consul_node_role}"
+
   start_services
+
+  # Set up Consul CLI environment for ACL operations.
+  configure_consul_env
+
+  # ACL bootstrap and token provisioning.
+  if [ "$${consul_node_role}" = "bootstrap" ]; then
+    log_info "=== Bootstrap Node: Initializing ACL system ==="
+    bootstrap_consul_acl
+    create_agent_token
+    apply_agent_token
+    create_nomad_token
+    mark_cluster_ready
+  else
+    log_info "=== Follower Node: Waiting for ACL bootstrap ==="
+    wait_for_bootstrap
+
+    bootstrap_token="$(fetch_secret "$${secret_consul_bootstrap_token}")"
+    export CONSUL_HTTP_TOKEN="$${bootstrap_token}"
+
+    apply_agent_token
+  fi
+
+  start_snapshot_agent
 
   log_info "=== Bootstrap complete ==="
 }

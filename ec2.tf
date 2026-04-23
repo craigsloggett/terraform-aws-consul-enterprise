@@ -55,6 +55,17 @@ resource "aws_instance" "consul" {
     consul_datacenter = var.consul_datacenter
     route53_zone_name = var.route53_zone.name
 
+    consul_cluster_tag_key            = local.cluster_tag_key
+    consul_cluster_tag_value          = local.cluster_tag_value
+    consul_cluster_state_ssm_name     = aws_ssm_parameter.consul_cluster_state.name
+    consul_bootstrap_token_secret_arn = aws_secretsmanager_secret.consul_bootstrap_token.arn
+    consul_agent_token_secret_arn     = aws_secretsmanager_secret.consul_agent_token.arn
+    consul_nomad_token_secret_arn     = aws_secretsmanager_secret.consul_nomad_token.arn
+
+    nomad_server_service_name                  = var.nomad_server_service_name
+    nomad_client_service_name                  = var.nomad_client_service_name
+    nomad_operator_snapshot_agent_service_name = var.nomad_operator_snapshot_agent_service_name
+
     config_server_consul_hcl       = local.config_server_consul_hcl
     config_server_server_hcl       = local.config_server_server_hcl
     config_server_acl_hcl          = local.config_server_acl_hcl
@@ -76,6 +87,10 @@ resource "aws_instance" "consul" {
   depends_on = [
     aws_iam_role_policy.consul_secrets_manager,
     aws_iam_role_policy.consul_vault_ca_bundle,
+    aws_iam_role_policy.consul_cluster_state,
+    aws_iam_role_policy.consul_bootstrap_token,
+    aws_iam_role_policy.consul_agent_token,
+    aws_iam_role_policy.consul_nomad_token,
     aws_iam_role_policy.vault_resolve_consul_role,
     vault_aws_auth_backend_role.consul_server,
     vault_pki_secret_backend_role.consul_server,
