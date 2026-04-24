@@ -8,7 +8,7 @@ resource "random_id" "gossip_key" {
 
 resource "aws_secretsmanager_secret" "consul_enterprise_license" {
   name_prefix = "${var.project_name}-consul-license-"
-  description = "Consul Enterprise license"
+  description = "Consul Enterprise License"
 
   tags = merge(var.common_tags, { Name = "${var.project_name}-consul-license" })
 }
@@ -20,7 +20,7 @@ resource "aws_secretsmanager_secret_version" "consul_enterprise_license" {
 
 resource "aws_secretsmanager_secret" "consul_gossip_key" {
   name_prefix = "${var.project_name}-consul-gossip-key-"
-  description = "Consul gossip encryption key"
+  description = "Consul Gossip Encryption Key"
 
   tags = merge(var.common_tags, { Name = "${var.project_name}-consul-gossip-key" })
 }
@@ -96,7 +96,7 @@ resource "tls_locally_signed_cert" "consul_server" {
 
 resource "aws_secretsmanager_secret" "consul_ca_cert" {
   name_prefix = "${var.project_name}-consul-ca-cert-"
-  description = "Consul self-signed CA certificate"
+  description = "Consul Self-signed CA Certificate"
 
   tags = merge(var.common_tags, { Name = "${var.project_name}-consul-ca-cert" })
 }
@@ -108,7 +108,7 @@ resource "aws_secretsmanager_secret_version" "consul_ca_cert" {
 
 resource "aws_secretsmanager_secret" "consul_server_cert" {
   name_prefix = "${var.project_name}-consul-server-cert-"
-  description = "Consul server TLS certificate"
+  description = "Consul Server TLS Certificate"
 
   tags = merge(var.common_tags, { Name = "${var.project_name}-consul-server-cert" })
 }
@@ -120,7 +120,7 @@ resource "aws_secretsmanager_secret_version" "consul_server_cert" {
 
 resource "aws_secretsmanager_secret" "consul_server_key" {
   name_prefix = "${var.project_name}-consul-server-key-"
-  description = "Consul server TLS private key"
+  description = "Consul Server TLS Private Key"
 
   tags = merge(var.common_tags, { Name = "${var.project_name}-consul-server-key" })
 }
@@ -134,8 +134,7 @@ resource "aws_secretsmanager_secret_version" "consul_server_key" {
 
 resource "aws_secretsmanager_secret" "consul_bootstrap_token" {
   name_prefix = "${var.project_name}-consul-bootstrap-token-"
-  description = "Consul ACL bootstrap token (populated during cluster initialization)"
+  description = "Consul ACL Bootstrap Token"
 
   tags = merge(var.common_tags, { Name = "${var.project_name}-consul-bootstrap-token" })
 }
-
