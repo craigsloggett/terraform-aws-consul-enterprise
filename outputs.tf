@@ -59,6 +59,11 @@ output "bootstrap_token_secret" {
   value       = aws_secretsmanager_secret.consul_bootstrap_token
 }
 
+output "agent_token_secret" {
+  description = "Secrets Manager secret containing the Consul server agent token."
+  value       = aws_secretsmanager_secret.consul_agent_token
+}
+
 output "private_subnet_ids" {
   description = "Private subnet IDs used by the Consul cluster."
   value       = local.vpc.private_subnet_ids

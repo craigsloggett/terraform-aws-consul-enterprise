@@ -171,6 +171,7 @@ module "consul" {
 
 | Name | Description |
 | ---- | ----------- |
+| <a name="output_agent_token_secret"></a> [agent\_token\_secret](#output\_agent\_token\_secret) | Secrets Manager secret containing the Consul server agent token. |
 | <a name="output_bastion_public_ip"></a> [bastion\_public\_ip](#output\_bastion\_public\_ip) | Public IP of the bastion host. |
 | <a name="output_bootstrap_token_secret"></a> [bootstrap\_token\_secret](#output\_bootstrap\_token\_secret) | Secrets Manager secret containing the Consul ACL bootstrap token. |
 | <a name="output_consul_asg_name"></a> [consul\_asg\_name](#output\_consul\_asg\_name) | Name of the Consul Auto Scaling Group. |
