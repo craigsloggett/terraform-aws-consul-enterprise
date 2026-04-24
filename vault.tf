@@ -3,7 +3,7 @@
 resource "vault_mount" "pki_consul" {
   path                      = var.vault_pki_mount
   type                      = "pki"
-  description               = "Consul intermediate PKI"
+  description               = "Consul Intermediate PKI"
   max_lease_ttl_seconds     = 94608000
   default_lease_ttl_seconds = 2764800
 }
@@ -19,7 +19,7 @@ resource "vault_pki_secret_backend_config_urls" "pki_consul" {
 resource "vault_pki_secret_backend_intermediate_cert_request" "pki_consul" {
   backend     = vault_mount.pki_consul.path
   type        = "internal"
-  common_name = "${var.project_name} Consul Intermediate CA"
+  common_name = "${title(var.project_name)} Consul Intermediate CA"
   key_type    = "ec"
   key_bits    = 384
 }
