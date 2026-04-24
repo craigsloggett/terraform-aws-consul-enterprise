@@ -59,9 +59,9 @@ output "bootstrap_token_secret" {
   value       = aws_secretsmanager_secret.consul_bootstrap_token
 }
 
-output "agent_token_secret" {
-  description = "Secrets Manager secret containing the Consul server agent token."
-  value       = aws_secretsmanager_secret.consul_agent_token
+output "consul_agent_token_secret_arn" {
+  description = "ARN of the Secrets Manager secret containing the Consul server agent token."
+  value       = aws_secretsmanager_secret.consul_agent_token.arn
 }
 
 output "private_subnet_ids" {
