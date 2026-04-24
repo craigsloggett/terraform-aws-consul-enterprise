@@ -39,8 +39,8 @@ output "ec2_ami_name" {
 }
 
 output "consul_ca_cert" {
-  description = "CA certificate for trusting the Consul TLS chain (Vault Consul intermediate CA)."
-  value       = vault_pki_secret_backend_root_sign_intermediate.pki_consul.certificate
+  description = "Self-signed CA certificate for trusting the Consul TLS chain."
+  value       = tls_self_signed_cert.consul_ca.cert_pem
   sensitive   = true
 }
 

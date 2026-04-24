@@ -14,7 +14,4 @@ module "consul" {
     zone_id = "Z0000000000000"
     name    = "example.com"
   }
-
-  vault_url           = "https://vault.example.com"
-  vault_iam_role_name = "vault-server"
 }

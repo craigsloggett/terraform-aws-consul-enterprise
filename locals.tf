@@ -12,11 +12,6 @@ locals {
     (var.consul_node_count - 1) / var.consul_node_count * 100
   )
 
-  vault_tls_ca_bundle_ssm_parameter_name = coalesce(
-    var.vault_tls_ca_bundle_ssm_parameter_name,
-    "/${var.project_name}/vault/tls/ca-bundle",
-  )
-
   created_vpc = var.existing_vpc == null ? module.vpc[0] : null
 
   vpc = var.existing_vpc != null ? {

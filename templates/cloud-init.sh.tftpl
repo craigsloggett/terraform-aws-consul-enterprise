@@ -7,10 +7,7 @@
 # Assumes:
 #   - Ubuntu or Debian
 #   - IAM instance profile with permissions for Secrets Manager, SSM, S3, EC2
-#   - Consul gossip key and Enterprise license stored in AWS Secrets Manager
-#   - Consul TLS materials issued on demand from Vault's PKI secrets engine
-#   - Vault AWS auth role bound to the instance's IAM role
-#   - Vault CA bundle published to AWS SSM Parameter Store
+#   - Consul gossip key, Enterprise license, and TLS materials in AWS Secrets Manager
 
 # shellcheck disable=SC2034,SC2154,SC2170,SC2269
 # SC2034/SC2154:
@@ -45,7 +42,6 @@ readonly EBS_DATA_FILESYSTEM="xfs"
 readonly TLS_CA_FILE="/opt/consul/tls/ca.crt"
 readonly TLS_CERT_FILE="/opt/consul/tls/server.crt"
 readonly TLS_KEY_FILE="/opt/consul/tls/server.key"
-readonly VAULT_CA_FILE="/opt/consul/tls/vault-ca.pem"
 
 # Snapshot Agent
 readonly SNAPSHOT_CONFIG_FILE="/opt/consul/snapshot-agent.json"
@@ -57,17 +53,9 @@ readonly AWS_REGION="${region}"
 # AWS Secrets Manager (ARNs)
 readonly SECRET_CONSUL_LICENSE="${consul_license_secret_arn}"
 readonly SECRET_CONSUL_GOSSIP_KEY="${consul_gossip_key_secret_arn}"
-
-# AWS SSM Parameter Store
-readonly VAULT_CA_BUNDLE_SSM_NAME="${vault_ca_bundle_ssm_name}"
-
-# Vault
-readonly VAULT_VERSION="${vault_version}"
-readonly VAULT_ADDR="${vault_addr}"
-readonly VAULT_PKI_MOUNT="${vault_pki_mount}"
-readonly VAULT_PKI_ROLE="${vault_pki_role}"
-readonly VAULT_AWS_AUTH_ROLE="${vault_aws_auth_role}"
-readonly CONSUL_SERVER_CERT_TTL="${consul_server_cert_ttl}"
+readonly SECRET_CONSUL_CA_CERT="${consul_ca_cert_secret_arn}"
+readonly SECRET_CONSUL_SERVER_CERT="${consul_server_cert_secret_arn}"
+readonly SECRET_CONSUL_SERVER_KEY="${consul_server_key_secret_arn}"
 
 # Cluster identity
 readonly CONSUL_FQDN="${consul_fqdn}"
@@ -402,74 +390,20 @@ install_consul() {
 }
 
 # ---------------------------------------------------------------------------
-# Install Vault CLI (used only to authenticate and issue PKI certificates)
+# Fetch Consul TLS materials from Secrets Manager
 # ---------------------------------------------------------------------------
 
-install_vault() {
-  log_info "Installing Vault CLI $${VAULT_VERSION}"
-  tmp_dir="$(mktemp -d)"
-
-  arch="$(detect_system_architecture)"
-  download_and_verify_release "vault" "$${VAULT_VERSION}" "$${arch}" "$${tmp_dir}"
-
-  unzip -o -q "$${tmp_dir}/vault_$${VAULT_VERSION}_linux_$${arch}.zip" -d "$${tmp_dir}"
-  mv "$${tmp_dir}/vault" /usr/local/bin/vault
-  chmod 0755 /usr/local/bin/vault
-  rm -rf "$${tmp_dir}"
-
-  vault version
-}
-
-# ---------------------------------------------------------------------------
-# Issue Consul server TLS materials from Vault PKI
-# ---------------------------------------------------------------------------
-
-issue_consul_tls_from_vault() {
-  log_info "Fetching Vault CA bundle from SSM ($${VAULT_CA_BUNDLE_SSM_NAME})"
-
-  mkdir -p "$(dirname "$${VAULT_CA_FILE}")"
-  fetch_ssm_parameter "$${VAULT_CA_BUNDLE_SSM_NAME}" >"$${VAULT_CA_FILE}"
-  chmod 0644 "$${VAULT_CA_FILE}"
-
-  export VAULT_ADDR="$${VAULT_ADDR}"
-  export VAULT_CACERT="$${VAULT_CA_FILE}"
-
-  log_info "Authenticating to Vault via AWS IAM auth"
-  vault_token="$(
-    vault login \
-      -format=json \
-      -method=aws \
-      role="$${VAULT_AWS_AUTH_ROLE}" |
-      jq -r '.auth.client_token'
-  )"
-  export VAULT_TOKEN="$${vault_token}"
-
-  log_info "Requesting Consul server certificate from $${VAULT_PKI_MOUNT}/issue/$${VAULT_PKI_ROLE}"
-  cert_json="$(
-    vault write -format=json "$${VAULT_PKI_MOUNT}/issue/$${VAULT_PKI_ROLE}" \
-      common_name="$${CONSUL_FQDN}" \
-      alt_names="server.$${CONSUL_DATACENTER}.consul,*.$${ROUTE53_ZONE_NAME},localhost" \
-      ip_sans="127.0.0.1" \
-      ttl="$${CONSUL_SERVER_CERT_TTL}"
-  )"
+fetch_consul_tls() {
+  log_info "Fetching Consul TLS materials from Secrets Manager"
 
   mkdir -p "$(dirname "$${TLS_CA_FILE}")"
 
-  # Assemble the full chain of trust — issuing intermediate(s) + root.
-  printf '%s\n' "$(printf '%s' "$${cert_json}" | jq -r '.data.issuing_ca')" >"$${TLS_CA_FILE}"
-  ca_chain="$(printf '%s' "$${cert_json}" | jq -r 'if (.data.ca_chain // []) | length > 0 then .data.ca_chain[] else empty end')"
-  if [ -n "$${ca_chain}" ]; then
-    printf '%s\n' "$${ca_chain}" >>"$${TLS_CA_FILE}"
-  fi
-
-  printf '%s\n' "$(printf '%s' "$${cert_json}" | jq -r '.data.certificate')" >"$${TLS_CERT_FILE}"
-  printf '%s\n' "$(printf '%s' "$${cert_json}" | jq -r '.data.private_key')" >"$${TLS_KEY_FILE}"
+  fetch_secret "$${SECRET_CONSUL_CA_CERT}" >"$${TLS_CA_FILE}"
+  fetch_secret "$${SECRET_CONSUL_SERVER_CERT}" >"$${TLS_CERT_FILE}"
+  fetch_secret "$${SECRET_CONSUL_SERVER_KEY}" >"$${TLS_KEY_FILE}"
 
   chown consul:consul "$${TLS_CA_FILE}" "$${TLS_CERT_FILE}" "$${TLS_KEY_FILE}"
   chmod 0640 "$${TLS_CA_FILE}" "$${TLS_CERT_FILE}" "$${TLS_KEY_FILE}"
-
-  # Drop the short-lived Vault token; the cert and key are on disk now.
-  unset VAULT_TOKEN
 }
 
 # ---------------------------------------------------------------------------
@@ -731,9 +665,8 @@ main() {
   prepare_system
   mount_data_volume
   install_consul
-  install_vault
 
-  issue_consul_tls_from_vault
+  fetch_consul_tls
   write_secrets
   write_consul_config "$${private_ip}"
   write_consul_systemd_unit
