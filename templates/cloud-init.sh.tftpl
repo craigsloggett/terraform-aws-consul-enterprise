@@ -551,7 +551,7 @@ service_prefix "" { policy = "read" }' \
   log_info "Creating agent token"
   agent_token="$(
     consul acl token create \
-      -description "Consul server agent token" \
+      -description "Consul Server Agent Token" \
       -policy-name "consul-server-agent" \
       -format=json | jq -r '.SecretID'
   )"
