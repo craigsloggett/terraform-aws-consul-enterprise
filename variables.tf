@@ -86,10 +86,32 @@ variable "ec2_ami" {
   description = "AMI to use for EC2 instances. Must be Ubuntu or Debian-based."
 }
 
+variable "consul_node_count" {
+  type        = number
+  description = "Number of Consul server nodes in the cluster. Must be 3 or 5 for Raft quorum."
+  default     = 3
+
+  validation {
+    condition     = contains([3, 5], var.consul_node_count)
+    error_message = "Must be 3 or 5."
+  }
+}
+
 variable "consul_server_instance_type" {
   type        = string
   description = "EC2 instance type for Consul server nodes."
   default     = "m5.large"
+}
+
+variable "root_volume_size" {
+  type        = number
+  description = "Size in GiB of the root EBS volume for Consul nodes."
+  default     = 50
+
+  validation {
+    condition     = var.root_volume_size >= 20
+    error_message = "Root volume must be at least 20 GiB."
+  }
 }
 
 variable "consul_ebs_volume_size" {

@@ -74,9 +74,6 @@ consul_fqdn="${consul_fqdn}"
 consul_datacenter="${consul_datacenter}"
 route53_zone_name="${route53_zone_name}"
 
-# Node identity
-node_id="${node_id}"
-
 # Cluster coordination
 consul_cluster_tag_key="${consul_cluster_tag_key}"
 consul_cluster_tag_value="${consul_cluster_tag_value}"
@@ -729,7 +726,7 @@ main() {
   private_ip="$(get_private_ip)"
   instance_id="$(get_instance_id)"
 
-  log_info "Instance $${node_id} ($${instance_id}) at $${private_ip}"
+  log_info "Instance $${instance_id} at $${private_ip}"
 
   prepare_system
   mount_data_volume

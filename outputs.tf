@@ -18,9 +18,9 @@ output "bastion_public_ip" {
   value       = aws_instance.bastion.public_ip
 }
 
-output "consul_private_ips" {
-  description = "Private IPs of the Consul nodes."
-  value       = aws_instance.consul[*].private_ip
+output "consul_asg_name" {
+  description = "Name of the Consul Auto Scaling Group."
+  value       = aws_autoscaling_group.consul.name
 }
 
 output "consul_snapshots_bucket" {
