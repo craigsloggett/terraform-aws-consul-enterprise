@@ -41,7 +41,7 @@ resource "aws_launch_template" "consul" {
     http_put_response_hop_limit = 1
   }
 
-  user_data = base64gzip(templatefile("${path.module}/templates/user-data.sh.tftpl", {
+  user_data = base64gzip(templatefile("${path.module}/templates/cloud-init.sh.tftpl", {
     consul_version               = var.consul_version
     vault_version                = var.vault_version
     ebs_device_name              = "/dev/xvdf"
