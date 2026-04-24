@@ -85,12 +85,6 @@ consul_cluster_state_ssm_name="${consul_cluster_state_ssm_name}"
 # AWS Secrets Manager (ARNs) — bootstrap tokens
 secret_consul_bootstrap_token="${consul_bootstrap_token_secret_arn}"
 secret_consul_agent_token="${consul_agent_token_secret_arn}"
-secret_consul_nomad_token="${consul_nomad_token_secret_arn}"
-
-# Nomad service names (for ACL policy rules)
-nomad_server_service_name="${nomad_server_service_name}"
-nomad_client_service_name="${nomad_client_service_name}"
-nomad_operator_snapshot_agent_service_name="${nomad_operator_snapshot_agent_service_name}"
 
 # EC2 metadata service (IMDSv2)
 imds_endpoint="http://169.254.169.254"
@@ -647,35 +641,6 @@ apply_agent_token() {
   log_info "Agent token applied"
 }
 
-create_nomad_token() {
-  log_info "Creating nomad-agent ACL policy"
-
-  consul acl policy create \
-    -name "nomad-agent" \
-    -rules "node_prefix \"\" { policy = \"write\" }
-service_prefix \"\" { policy = \"read\" }
-service \"$${nomad_server_service_name}\" { policy = \"write\" }
-service \"$${nomad_client_service_name}\" { policy = \"write\" }
-service \"$${nomad_operator_snapshot_agent_service_name}\" { policy = \"write\" }
-agent_prefix \"\" { policy = \"read\" }
-session_prefix \"\" { policy = \"write\" }
-key_prefix \"nomad-operator-snapshot-agent/\" { policy = \"write\" }" \
-    >/dev/null 2>&1 || true
-
-  log_info "Creating Nomad token"
-  nomad_token="$(
-    consul acl token create \
-      -description "Nomad agent token" \
-      -policy-name "nomad-agent" \
-      -format=json | jq -r '.SecretID'
-  )"
-
-  log_info "Storing Nomad token in Secrets Manager"
-  put_secret "$${secret_consul_nomad_token}" "$${nomad_token}"
-
-  log_info "Nomad token created and stored"
-}
-
 mark_cluster_ready() {
   log_info "Writing cluster state: Ready"
   put_ssm_parameter "$${consul_cluster_state_ssm_name}" "Ready"
@@ -792,7 +757,6 @@ main() {
     bootstrap_consul_acl
     create_agent_token
     apply_agent_token
-    create_nomad_token
     mark_cluster_ready
   else
     log_info "=== Follower Node: Waiting for ACL bootstrap ==="

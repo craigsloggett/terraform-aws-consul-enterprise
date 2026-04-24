@@ -32,13 +32,6 @@ resource "aws_secretsmanager_secret_version" "consul_gossip_key" {
 
 # Placeholder Secrets (Populated After ACL Bootstrap)
 
-resource "aws_secretsmanager_secret" "consul_nomad_token" {
-  name_prefix = "${var.project_name}-consul-nomad-token-"
-  description = "Consul ACL token for Nomad (populated during cluster initialization)"
-
-  tags = merge(var.common_tags, { Name = "${var.project_name}-consul-nomad-token" })
-}
-
 # Bootstrap Tokens (Populated During Cluster Initialization)
 
 resource "aws_secretsmanager_secret" "consul_bootstrap_token" {

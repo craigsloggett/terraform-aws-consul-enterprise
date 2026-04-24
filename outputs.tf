@@ -59,11 +59,6 @@ output "bootstrap_token_secret" {
   value       = aws_secretsmanager_secret.consul_bootstrap_token
 }
 
-output "nomad_token_secret" {
-  description = "Secrets Manager secret containing the Consul ACL token for Nomad."
-  value       = aws_secretsmanager_secret.consul_nomad_token
-}
-
 output "private_subnet_ids" {
   description = "Private subnet IDs used by the Consul cluster."
   value       = local.vpc.private_subnet_ids
@@ -87,17 +82,3 @@ output "datacenter" {
   value       = var.consul_datacenter
 }
 
-output "nomad_server_service_name" {
-  description = "Consul service name Nomad servers will register as."
-  value       = var.nomad_server_service_name
-}
-
-output "nomad_client_service_name" {
-  description = "Consul service name Nomad clients will register as."
-  value       = var.nomad_client_service_name
-}
-
-output "nomad_operator_snapshot_agent_service_name" {
-  description = "Consul service name the Nomad Operator Snapshot Agent will register as."
-  value       = var.nomad_operator_snapshot_agent_service_name
-}
