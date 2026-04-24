@@ -134,7 +134,7 @@ resource "aws_secretsmanager_secret_version" "consul_server_key" {
 
 resource "aws_secretsmanager_secret" "consul_bootstrap_token" {
   name_prefix = "${var.project_name}-consul-bootstrap-token-"
-  description = "Consul ACL Bootstrap Token"
+  description = "Consul Bootstrap ACL Token"
 
   tags = merge(var.common_tags, { Name = "${var.project_name}-consul-bootstrap-token" })
 }
