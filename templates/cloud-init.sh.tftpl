@@ -69,7 +69,6 @@ readonly CONSUL_CLUSTER_STATE_SSM_NAME="${consul_cluster_state_ssm_name}"
 
 # AWS Secrets Manager (ARNs) — bootstrap tokens
 readonly SECRET_CONSUL_BOOTSTRAP_TOKEN="${consul_bootstrap_token_secret_arn}"
-readonly SECRET_CONSUL_AGENT_TOKEN="${consul_agent_token_secret_arn}"
 
 # EC2 metadata service (IMDSv2)
 readonly IMDS_ENDPOINT="http://169.254.169.254"
@@ -540,31 +539,21 @@ bootstrap_consul_acl() {
 }
 
 create_agent_token() {
-  log_info "Creating consul-server-agent ACL policy"
+  node_name="$${1}"
+  datacenter="$${2}"
 
-  consul acl policy create \
-    -name "consul-server-agent" \
-    -rules 'node_prefix "" { policy = "write" }
-service_prefix "" { policy = "read" }' \
-    >/dev/null 2>&1 || true
+  log_info "Creating agent token with node identity for $${node_name}"
 
-  log_info "Creating agent token"
-  agent_token="$(
-    consul acl token create \
-      -description "Consul Server Agent Token" \
-      -policy-name "consul-server-agent" \
-      -format=json | jq -r '.SecretID'
-  )"
-
-  log_info "Storing agent token in Secrets Manager"
-  put_secret "$${SECRET_CONSUL_AGENT_TOKEN}" "$${agent_token}"
-
-  log_info "Agent token created and stored"
+  consul acl token create \
+    -partition "default" \
+    -description "Agent Token ($${node_name})" \
+    -node-identity "$${node_name}:$${datacenter}" \
+    -format=json |
+    jq -r '.SecretID'
 }
 
 apply_agent_token() {
-  log_info "Fetching agent token from Secrets Manager"
-  agent_token="$(fetch_secret "$${SECRET_CONSUL_AGENT_TOKEN}")"
+  agent_token="$${1}"
 
   log_info "Setting agent token on local node"
   consul acl set-agent-token agent "$${agent_token}"
@@ -685,8 +674,8 @@ main() {
   if [ "$${consul_node_role}" = "bootstrap" ]; then
     log_info "=== Bootstrap Node: Initializing ACL system ==="
     bootstrap_consul_acl
-    create_agent_token
-    apply_agent_token
+    agent_token="$(create_agent_token "$${instance_id}" "$${CONSUL_DATACENTER}")"
+    apply_agent_token "$${agent_token}"
     mark_cluster_ready
   else
     log_info "=== Follower Node: Waiting for ACL bootstrap ==="
@@ -695,7 +684,8 @@ main() {
     bootstrap_token="$(fetch_secret "$${SECRET_CONSUL_BOOTSTRAP_TOKEN}")"
     export CONSUL_HTTP_TOKEN="$${bootstrap_token}"
 
-    apply_agent_token
+    agent_token="$(create_agent_token "$${instance_id}" "$${CONSUL_DATACENTER}")"
+    apply_agent_token "$${agent_token}"
   fi
 
   start_snapshot_agent

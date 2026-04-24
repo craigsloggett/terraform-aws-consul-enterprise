@@ -84,25 +84,6 @@ resource "aws_iam_role_policy" "consul_bootstrap_token" {
   policy      = data.aws_iam_policy_document.consul_bootstrap_token.json
 }
 
-# Secrets Manager (agent token — read/write during initialization)
-
-data "aws_iam_policy_document" "consul_agent_token" {
-  statement {
-    effect = "Allow"
-    actions = [
-      "secretsmanager:GetSecretValue",
-      "secretsmanager:PutSecretValue",
-    ]
-    resources = [aws_secretsmanager_secret.consul_agent_token.arn]
-  }
-}
-
-resource "aws_iam_role_policy" "consul_agent_token" {
-  name_prefix = "${var.project_name}-agent-token-"
-  role        = aws_iam_role.consul.id
-  policy      = data.aws_iam_policy_document.consul_agent_token.json
-}
-
 # S3 (snapshots)
 
 data "aws_iam_policy_document" "consul_s3" {

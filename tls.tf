@@ -139,9 +139,3 @@ resource "aws_secretsmanager_secret" "consul_bootstrap_token" {
   tags = merge(var.common_tags, { Name = "${var.project_name}-consul-bootstrap-token" })
 }
 
-resource "aws_secretsmanager_secret" "consul_agent_token" {
-  name_prefix = "${var.project_name}-consul-agent-token-"
-  description = "Consul server agent ACL token (populated during cluster initialization)"
-
-  tags = merge(var.common_tags, { Name = "${var.project_name}-consul-agent-token" })
-}

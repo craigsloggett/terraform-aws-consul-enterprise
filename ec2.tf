@@ -60,7 +60,6 @@ resource "aws_launch_template" "consul" {
     consul_cluster_tag_value          = local.cluster_tag_value
     consul_cluster_state_ssm_name     = aws_ssm_parameter.consul_cluster_state.name
     consul_bootstrap_token_secret_arn = aws_secretsmanager_secret.consul_bootstrap_token.arn
-    consul_agent_token_secret_arn     = aws_secretsmanager_secret.consul_agent_token.arn
 
     config_server_consul_hcl       = local.config_server_consul_hcl
     config_server_server_hcl       = local.config_server_server_hcl
@@ -168,6 +167,5 @@ resource "aws_autoscaling_group" "consul" {
     aws_iam_role_policy.consul_secrets_manager,
     aws_iam_role_policy.consul_cluster_state,
     aws_iam_role_policy.consul_bootstrap_token,
-    aws_iam_role_policy.consul_agent_token,
   ]
 }
