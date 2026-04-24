@@ -212,22 +212,10 @@ variable "vault_aws_auth_role" {
   default     = "consul-server"
 }
 
-variable "vault_pki_organization" {
-  type        = string
-  description = "Organization attribute set on the Consul intermediate CA certificate."
-  default     = "HashiCorp"
-}
-
-variable "vault_pki_country" {
-  type        = string
-  description = "Country attribute set on the Consul intermediate CA certificate."
-  default     = "US"
-}
-
-variable "vault_pki_intermediate_ttl" {
-  type        = string
-  description = "TTL for the Consul intermediate CA certificate (signed by pki_root)."
-  default     = "26280h"
+variable "consul_pki_signed_intermediate_wait_timeout_seconds" {
+  type        = number
+  description = "Maximum seconds the bootstrap node waits for the signed intermediate certificate to appear in Secrets Manager."
+  default     = 1800
 }
 
 variable "consul_server_cert_ttl" {

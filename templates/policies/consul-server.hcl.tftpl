@@ -1,3 +1,29 @@
+# Issue leaf certificates (all nodes, ongoing)
 path "${pki_path}/issue/${pki_role}" {
   capabilities = ["create", "update"]
+}
+
+# Intermediate CA setup (bootstrap node, one-time)
+path "${pki_path}/intermediate/generate/internal" {
+  capabilities = ["create", "update"]
+}
+
+path "${pki_path}/intermediate/set-signed" {
+  capabilities = ["create", "update"]
+}
+
+path "${pki_path}/config/issuers" {
+  capabilities = ["create", "update", "read"]
+}
+
+path "${pki_path}/config/urls" {
+  capabilities = ["create", "update"]
+}
+
+path "${pki_path}/roles/${pki_role}" {
+  capabilities = ["create", "update"]
+}
+
+path "${pki_path}/cert/ca" {
+  capabilities = ["read"]
 }

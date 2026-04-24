@@ -142,6 +142,80 @@ resource "aws_iam_role_policy" "consul_s3" {
   policy      = data.aws_iam_policy_document.consul_s3.json
 }
 
+# SSM Parameter Store (PKI coordination)
+
+data "aws_iam_policy_document" "consul_pki_state" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "ssm:GetParameter",
+      "ssm:PutParameter",
+    ]
+    resources = [aws_ssm_parameter.consul_pki_state.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "consul_pki_state" {
+  name_prefix = "${var.project_name}-pki-state-"
+  role        = aws_iam_role.consul.id
+  policy      = data.aws_iam_policy_document.consul_pki_state.json
+}
+
+data "aws_iam_policy_document" "consul_pki_csr" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "ssm:GetParameter",
+      "ssm:PutParameter",
+    ]
+    resources = [aws_ssm_parameter.consul_pki_intermediate_ca_csr.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "consul_pki_csr" {
+  name_prefix = "${var.project_name}-pki-csr-"
+  role        = aws_iam_role.consul.id
+  policy      = data.aws_iam_policy_document.consul_pki_csr.json
+}
+
+# Secrets Manager (signed intermediate CA certificate)
+
+data "aws_iam_policy_document" "consul_pki_signed_csr" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "secretsmanager:GetSecretValue",
+      "secretsmanager:DescribeSecret",
+    ]
+    resources = [aws_secretsmanager_secret.consul_pki_intermediate_ca_signed_csr.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "consul_pki_signed_csr" {
+  name_prefix = "${var.project_name}-pki-signed-csr-"
+  role        = aws_iam_role.consul.id
+  policy      = data.aws_iam_policy_document.consul_pki_signed_csr.json
+}
+
+# SSM Parameter Store (Consul TLS CA bundle)
+
+data "aws_iam_policy_document" "consul_tls_ca_bundle" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "ssm:GetParameter",
+      "ssm:PutParameter",
+    ]
+    resources = [aws_ssm_parameter.consul_tls_ca_bundle.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "consul_tls_ca_bundle" {
+  name_prefix = "${var.project_name}-tls-ca-bundle-"
+  role        = aws_iam_role.consul.id
+  policy      = data.aws_iam_policy_document.consul_tls_ca_bundle.json
+}
+
 # EC2 (auto-join)
 
 data "aws_iam_policy_document" "consul_ec2_describe" {

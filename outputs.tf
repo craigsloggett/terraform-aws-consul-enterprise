@@ -38,10 +38,19 @@ output "ec2_ami_name" {
   value       = var.ec2_ami.name
 }
 
-output "consul_ca_cert" {
-  description = "CA certificate for trusting the Consul TLS chain (Vault Consul intermediate CA)."
-  value       = vault_pki_secret_backend_root_sign_intermediate.pki_consul.certificate
-  sensitive   = true
+output "consul_tls_ca_bundle_ssm_parameter_name" {
+  description = "SSM parameter name for the Consul PKI TLS CA bundle."
+  value       = aws_ssm_parameter.consul_tls_ca_bundle.name
+}
+
+output "consul_pki_intermediate_ca_csr_ssm_parameter_name" {
+  description = "SSM parameter name where the Consul intermediate CA CSR is published."
+  value       = aws_ssm_parameter.consul_pki_intermediate_ca_csr.name
+}
+
+output "consul_pki_intermediate_ca_signed_csr_secret_arn" {
+  description = "Secrets Manager ARN for the signed Consul intermediate CA certificate."
+  value       = aws_secretsmanager_secret.consul_pki_intermediate_ca_signed_csr.arn
 }
 
 output "security_group" {

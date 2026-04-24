@@ -1,7 +1,7 @@
 module "consul" {
   source = "../.."
 
-  project_name              = "consul"
+  project_name              = var.project_name
   consul_enterprise_license = var.consul_enterprise_license
   ec2_key_pair_name         = "example"
 

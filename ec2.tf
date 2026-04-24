@@ -56,6 +56,12 @@ resource "aws_launch_template" "consul" {
     vault_aws_auth_role      = var.vault_aws_auth_role
     consul_server_cert_ttl   = var.consul_server_cert_ttl
 
+    consul_pki_state_ssm_name                           = aws_ssm_parameter.consul_pki_state.name
+    consul_pki_intermediate_ca_csr_ssm_name             = aws_ssm_parameter.consul_pki_intermediate_ca_csr.name
+    consul_pki_intermediate_ca_signed_csr_secret_arn    = aws_secretsmanager_secret.consul_pki_intermediate_ca_signed_csr.arn
+    consul_pki_signed_intermediate_wait_timeout_seconds = var.consul_pki_signed_intermediate_wait_timeout_seconds
+    consul_tls_ca_bundle_ssm_name                       = aws_ssm_parameter.consul_tls_ca_bundle.name
+
     consul_fqdn       = local.consul_fqdn
     consul_datacenter = var.consul_datacenter
     route53_zone_name = var.route53_zone.name
@@ -174,9 +180,11 @@ resource "aws_autoscaling_group" "consul" {
     aws_iam_role_policy.consul_cluster_state,
     aws_iam_role_policy.consul_bootstrap_token,
     aws_iam_role_policy.consul_agent_token,
+    aws_iam_role_policy.consul_pki_state,
+    aws_iam_role_policy.consul_pki_csr,
+    aws_iam_role_policy.consul_pki_signed_csr,
+    aws_iam_role_policy.consul_tls_ca_bundle,
     aws_iam_role_policy.vault_resolve_consul_role,
     vault_aws_auth_backend_role.consul_server,
-    vault_pki_secret_backend_role.consul_server,
-    vault_pki_secret_backend_intermediate_set_signed.pki_consul,
   ]
 }
