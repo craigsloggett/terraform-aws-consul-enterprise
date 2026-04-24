@@ -6,35 +6,7 @@ A Terraform module for deploying HashiCorp Consul Enterprise on AWS.
 
 ### main.tf
 ```hcl
-data "aws_route53_zone" "selected" {
-  name = var.route53_zone_name
-}
 
-data "aws_ami" "debian" {
-  most_recent = true
-  owners      = ["136693071363"]
-
-  filter {
-    name   = "name"
-    values = ["debian-13-amd64-*"]
-  }
-
-  filter {
-    name   = "architecture"
-    values = ["x86_64"]
-  }
-}
-
-module "consul" {
-  # tflint-ignore: terraform_module_pinned_source
-  source = "git::https://github.com/craigsloggett/terraform-aws-consul-enterprise"
-
-  project_name              = "consul-enterprise"
-  route53_zone              = data.aws_route53_zone.selected
-  consul_enterprise_license = var.consul_enterprise_license
-  ec2_key_pair_name         = var.ec2_key_pair_name
-  ec2_ami                   = data.aws_ami.debian
-}
 ```
 
 ## Requirements
@@ -77,9 +49,6 @@ module "consul" {
 | <a name="input_ec2_key_pair_name"></a> [ec2\_key\_pair\_name](#input\_ec2\_key\_pair\_name) | Name of an existing EC2 key pair for SSH access. | `string` | n/a | yes |
 | <a name="input_existing_vpc"></a> [existing\_vpc](#input\_existing\_vpc) | Existing VPC to deploy into. When null (default), a new VPC is created.<br/>The existing VPC must already have the required VPC endpoints:<br/>Secrets Manager, SSM, and EC2 (Interface), S3 (Gateway). | <pre>object({<br/>    vpc_id             = string<br/>    private_subnet_ids = list(string)<br/>    public_subnet_ids  = list(string)<br/>  })</pre> | `null` | no |
 | <a name="input_nlb_internal"></a> [nlb\_internal](#input\_nlb\_internal) | Whether the NLB is internal. | `bool` | `true` | no |
-| <a name="input_nomad_client_service_name"></a> [nomad\_client\_service\_name](#input\_nomad\_client\_service\_name) | Consul service name Nomad clients will register as. | `string` | `"nomad-client"` | no |
-| <a name="input_nomad_operator_snapshot_agent_service_name"></a> [nomad\_operator\_snapshot\_agent\_service\_name](#input\_nomad\_operator\_snapshot\_agent\_service\_name) | Consul service name the Nomad Operator Snapshot Agent will register as. | `string` | `"nomad-operator-snapshot-agent"` | no |
-| <a name="input_nomad_server_service_name"></a> [nomad\_server\_service\_name](#input\_nomad\_server\_service\_name) | Consul service name Nomad servers will register as. | `string` | `"nomad-server"` | no |
 | <a name="input_project_name"></a> [project\_name](#input\_project\_name) | Name prefix for all resources. | `string` | n/a | yes |
 | <a name="input_route53_zone"></a> [route53\_zone](#input\_route53\_zone) | Route 53 hosted zone for the Consul DNS record. | <pre>object({<br/>    zone_id = string<br/>    name    = string<br/>  })</pre> | n/a | yes |
 | <a name="input_vault_aws_auth_role"></a> [vault\_aws\_auth\_role](#input\_vault\_aws\_auth\_role) | Name of the Vault AWS auth role bound to the Consul server IAM role. | `string` | `"consul-server"` | no |
@@ -109,7 +78,6 @@ module "consul" {
 | [aws_iam_role_policy.consul_bootstrap_token](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
 | [aws_iam_role_policy.consul_cluster_state](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
 | [aws_iam_role_policy.consul_ec2_describe](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
-| [aws_iam_role_policy.consul_nomad_token](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
 | [aws_iam_role_policy.consul_s3](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
 | [aws_iam_role_policy.consul_secrets_manager](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
 | [aws_iam_role_policy.consul_vault_ca_bundle](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
@@ -132,7 +100,6 @@ module "consul" {
 | [aws_secretsmanager_secret.consul_bootstrap_token](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
 | [aws_secretsmanager_secret.consul_enterprise_license](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
 | [aws_secretsmanager_secret.consul_gossip_key](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
-| [aws_secretsmanager_secret.consul_nomad_token](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
 | [aws_secretsmanager_secret_version.consul_enterprise_license](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
 | [aws_secretsmanager_secret_version.consul_gossip_key](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
 | [aws_security_group.bastion](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
@@ -173,7 +140,6 @@ module "consul" {
 | [aws_iam_policy_document.consul_bootstrap_token](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.consul_cluster_state](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.consul_ec2_describe](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
-| [aws_iam_policy_document.consul_nomad_token](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.consul_s3](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.consul_secrets_manager](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.consul_snapshots](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
@@ -198,10 +164,6 @@ module "consul" {
 | <a name="output_datacenter"></a> [datacenter](#output\_datacenter) | Consul datacenter name. |
 | <a name="output_ec2_ami_name"></a> [ec2\_ami\_name](#output\_ec2\_ami\_name) | Name of the AMI used for EC2 instances. |
 | <a name="output_gossip_key_secret"></a> [gossip\_key\_secret](#output\_gossip\_key\_secret) | Secrets Manager secret containing the Consul gossip encryption key. |
-| <a name="output_nomad_client_service_name"></a> [nomad\_client\_service\_name](#output\_nomad\_client\_service\_name) | Consul service name Nomad clients will register as. |
-| <a name="output_nomad_operator_snapshot_agent_service_name"></a> [nomad\_operator\_snapshot\_agent\_service\_name](#output\_nomad\_operator\_snapshot\_agent\_service\_name) | Consul service name the Nomad Operator Snapshot Agent will register as. |
-| <a name="output_nomad_server_service_name"></a> [nomad\_server\_service\_name](#output\_nomad\_server\_service\_name) | Consul service name Nomad servers will register as. |
-| <a name="output_nomad_token_secret"></a> [nomad\_token\_secret](#output\_nomad\_token\_secret) | Secrets Manager secret containing the Consul ACL token for Nomad. |
 | <a name="output_private_subnet_ids"></a> [private\_subnet\_ids](#output\_private\_subnet\_ids) | Private subnet IDs used by the Consul cluster. |
 | <a name="output_public_subnet_ids"></a> [public\_subnet\_ids](#output\_public\_subnet\_ids) | Public subnet IDs used by the Consul cluster. |
 | <a name="output_security_group"></a> [security\_group](#output\_security\_group) | Consul cluster security group. |

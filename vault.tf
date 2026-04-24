@@ -3,9 +3,9 @@
 resource "vault_mount" "pki_consul" {
   path                      = var.vault_pki_mount
   type                      = "pki"
-  description               = "Consul intermediate PKI (chained from pki_root)"
-  max_lease_ttl_seconds     = 94608000 # 3 years, matches Vault module pattern
-  default_lease_ttl_seconds = 2764800  # 32 days
+  description               = "Consul intermediate PKI"
+  max_lease_ttl_seconds     = 94608000
+  default_lease_ttl_seconds = 2764800
 }
 
 resource "vault_pki_secret_backend_config_urls" "pki_consul" {
@@ -27,7 +27,7 @@ resource "vault_pki_secret_backend_intermediate_cert_request" "pki_consul" {
 resource "vault_pki_secret_backend_root_sign_intermediate" "pki_consul" {
   backend      = "pki_root"
   csr          = vault_pki_secret_backend_intermediate_cert_request.pki_consul.csr
-  common_name  = "${var.project_name} Consul Intermediate CA"
+  common_name  = "${title(var.project_name)} Consul Intermediate CA"
   organization = var.vault_pki_organization
   country      = var.vault_pki_country
   ttl          = var.vault_pki_intermediate_ttl
@@ -59,7 +59,7 @@ resource "vault_pki_secret_backend_role" "consul_server" {
 
   ext_key_usage = ["ServerAuth", "ClientAuth"]
 
-  max_ttl = 86400 # 24h
+  max_ttl = 86400
 }
 
 # Policy Tightly Scoped to Issue Consul Server Certificates
