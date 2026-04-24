@@ -18,9 +18,9 @@ output "bastion_public_ip" {
   value       = aws_instance.bastion.public_ip
 }
 
-output "consul_private_ips" {
-  description = "Private IPs of the Consul nodes."
-  value       = aws_instance.consul[*].private_ip
+output "consul_asg_name" {
+  description = "Name of the Consul Auto Scaling Group."
+  value       = aws_autoscaling_group.consul.name
 }
 
 output "consul_snapshots_bucket" {
@@ -39,8 +39,8 @@ output "ec2_ami_name" {
 }
 
 output "consul_ca_cert" {
-  description = "CA certificate for trusting the Consul TLS chain (Vault Consul intermediate CA)."
-  value       = vault_pki_secret_backend_root_sign_intermediate.pki_consul.certificate
+  description = "Self-signed CA certificate for trusting the Consul TLS chain."
+  value       = tls_self_signed_cert.consul_ca.cert_pem
   sensitive   = true
 }
 
@@ -54,9 +54,9 @@ output "gossip_key_secret" {
   value       = aws_secretsmanager_secret.consul_gossip_key
 }
 
-output "nomad_token_secret" {
-  description = "Secrets Manager secret containing the Consul ACL token for Nomad."
-  value       = aws_secretsmanager_secret.consul_nomad_token
+output "bootstrap_token_secret" {
+  description = "Secrets Manager secret containing the Consul ACL bootstrap token."
+  value       = aws_secretsmanager_secret.consul_bootstrap_token
 }
 
 output "private_subnet_ids" {
@@ -82,17 +82,3 @@ output "datacenter" {
   value       = var.consul_datacenter
 }
 
-output "nomad_server_service_name" {
-  description = "Consul service name Nomad servers will register as."
-  value       = var.nomad_server_service_name
-}
-
-output "nomad_client_service_name" {
-  description = "Consul service name Nomad clients will register as."
-  value       = var.nomad_client_service_name
-}
-
-output "nomad_operator_snapshot_agent_service_name" {
-  description = "Consul service name the Nomad Operator Snapshot Agent will register as."
-  value       = var.nomad_operator_snapshot_agent_service_name
-}

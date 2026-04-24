@@ -49,7 +49,7 @@ variable "existing_vpc" {
   description = <<-EOT
     Existing VPC to deploy into. When null (default), a new VPC is created.
     The existing VPC must already have the required VPC endpoints:
-    Secrets Manager and EC2 (Interface), S3 (Gateway).
+    Secrets Manager, SSM, and EC2 (Interface), S3 (Gateway).
   EOT
 
   validation {
@@ -86,10 +86,32 @@ variable "ec2_ami" {
   description = "AMI to use for EC2 instances. Must be Ubuntu or Debian-based."
 }
 
+variable "consul_node_count" {
+  type        = number
+  description = "Number of Consul server nodes in the cluster. Must be 3 or 5 for Raft quorum."
+  default     = 3
+
+  validation {
+    condition     = contains([3, 5], var.consul_node_count)
+    error_message = "Must be 3 or 5."
+  }
+}
+
 variable "consul_server_instance_type" {
   type        = string
   description = "EC2 instance type for Consul server nodes."
   default     = "m5.large"
+}
+
+variable "root_volume_size" {
+  type        = number
+  description = "Size in GiB of the root EBS volume for Consul nodes."
+  default     = 50
+
+  validation {
+    condition     = var.root_volume_size >= 20
+    error_message = "Root volume must be at least 20 GiB."
+  }
 }
 
 variable "consul_ebs_volume_size" {
@@ -140,24 +162,6 @@ variable "consul_datacenter" {
   default     = "dc1"
 }
 
-variable "nomad_server_service_name" {
-  description = "Consul service name Nomad servers will register as."
-  type        = string
-  default     = "nomad-server"
-}
-
-variable "nomad_client_service_name" {
-  description = "Consul service name Nomad clients will register as."
-  type        = string
-  default     = "nomad-client"
-}
-
-variable "nomad_operator_snapshot_agent_service_name" {
-  description = "Consul service name the Nomad Operator Snapshot Agent will register as."
-  type        = string
-  default     = "nomad-operator-snapshot-agent"
-}
-
 # NLB
 
 variable "nlb_internal" {
@@ -170,77 +174,6 @@ variable "consul_api_allowed_cidrs" {
   type        = list(string)
   description = "CIDR blocks allowed to reach the Consul API (port 8501) from outside the VPC. Only effective when nlb_internal is false."
   default     = []
-}
-
-# Vault
-
-variable "vault_url" {
-  type        = string
-  description = "Base URL of the Vault cluster (scheme and host, no port). For example: \"https://vault.example.com\"."
-}
-
-variable "vault_iam_role_name" {
-  type        = string
-  description = "Name of the Vault server IAM role. This module grants the Vault server role `iam:GetRole` on the Consul server IAM role so Vault's AWS auth method can resolve the bound principal during login."
-}
-
-variable "vault_tls_ca_bundle_ssm_parameter_name" {
-  type        = string
-  description = "SSM parameter name holding the Vault PKI root+intermediate CA bundle. When null, defaults to /<project_name>/vault/tls/ca-bundle (the pattern used by terraform-aws-vault-enterprise when the Vault project_name matches this module's)."
-  default     = null
-}
-
-variable "vault_pki_mount" {
-  type        = string
-  description = "Path of the Consul intermediate PKI secrets engine in Vault."
-  default     = "pki_consul"
-}
-
-variable "vault_pki_role" {
-  type        = string
-  description = "Name of the Vault PKI role used to issue Consul server certificates."
-  default     = "consul-server"
-}
-
-variable "vault_aws_auth_role" {
-  type        = string
-  description = "Name of the Vault AWS auth role bound to the Consul server IAM role."
-  default     = "consul-server"
-}
-
-variable "vault_pki_organization" {
-  type        = string
-  description = "Organization attribute set on the Consul intermediate CA certificate."
-  default     = "HashiCorp"
-}
-
-variable "vault_pki_country" {
-  type        = string
-  description = "Country attribute set on the Consul intermediate CA certificate."
-  default     = "US"
-}
-
-variable "vault_pki_intermediate_ttl" {
-  type        = string
-  description = "TTL for the Consul intermediate CA certificate (signed by pki_root)."
-  default     = "26280h"
-}
-
-variable "consul_server_cert_ttl" {
-  type        = string
-  description = "TTL for Consul server certificates issued by Vault."
-  default     = "24h"
-}
-
-variable "vault_version" {
-  type        = string
-  description = "Vault Enterprise release version (e.g., 1.21.4+ent)."
-  default     = "1.21.4+ent"
-
-  validation {
-    condition     = can(regex("^\\d+\\.\\d+\\.\\d+\\+ent(\\.hsm)?(\\.fips1402)?$", var.vault_version))
-    error_message = "Must be a valid Vault Enterprise release version (e.g., 1.21.4+ent, 1.21.4+ent.hsm, 1.21.4+ent.fips1402)."
-  }
 }
 
 # Snapshots

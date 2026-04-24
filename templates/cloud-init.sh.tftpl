@@ -7,10 +7,7 @@
 # Assumes:
 #   - Ubuntu or Debian
 #   - IAM instance profile with permissions for Secrets Manager, SSM, S3, EC2
-#   - Consul gossip key and Enterprise license stored in AWS Secrets Manager
-#   - Consul TLS materials issued on demand from Vault's PKI secrets engine
-#   - Vault AWS auth role bound to the instance's IAM role
-#   - Vault CA bundle published to AWS SSM Parameter Store
+#   - Consul gossip key, Enterprise license, and TLS materials in AWS Secrets Manager
 
 # shellcheck disable=SC2034,SC2154,SC2170,SC2269
 # SC2034/SC2154:
@@ -29,57 +26,53 @@ set -ef
 # ---------------------------------------------------------------------------
 
 # Consul
-consul_version="${consul_version}"
-consul_data_dir="/opt/consul/data"
-consul_config_dir="/etc/consul.d"
-consul_license_path="/opt/consul/consul.hclic"
+readonly CONSUL_VERSION="${consul_version}"
+readonly CONSUL_DATA_DIR="/opt/consul/data"
+readonly CONSUL_CONFIG_DIR="/etc/consul.d"
+readonly CONSUL_LICENSE_PATH="/opt/consul/consul.hclic"
 
 # An EBS data volume backs Raft state + local snapshots.
-# ebs_data_device_name is the attachment name from Terraform (e.g. /dev/xvdf).
+# EBS_DATA_DEVICE_NAME is the attachment name from Terraform (e.g. /dev/xvdf).
 # On Nitro instances this appears as /dev/nvme*n1 and ebsnvme-id resolves it.
-ebs_data_device_name="${ebs_device_name}"
-ebs_data_mount="/opt/consul"
-ebs_data_filesystem="xfs"
+readonly EBS_DATA_DEVICE_NAME="${ebs_device_name}"
+readonly EBS_DATA_MOUNT="/opt/consul"
+readonly EBS_DATA_FILESYSTEM="xfs"
 
 # TLS
-tls_ca_file="/opt/consul/tls/ca.crt"
-tls_cert_file="/opt/consul/tls/server.crt"
-tls_key_file="/opt/consul/tls/server.key"
-vault_ca_file="/opt/consul/tls/vault-ca.pem"
+readonly TLS_CA_FILE="/opt/consul/tls/ca.crt"
+readonly TLS_CERT_FILE="/opt/consul/tls/server.crt"
+readonly TLS_KEY_FILE="/opt/consul/tls/server.key"
 
 # Snapshot Agent
-snapshot_config_file="/opt/consul/snapshot-agent.json"
-snapshot_token_file="/opt/consul/snapshot-token"
+readonly SNAPSHOT_CONFIG_FILE="/opt/consul/snapshot-agent.json"
+readonly SNAPSHOT_TOKEN_FILE="/opt/consul/snapshot-token"
 
 # AWS
-aws_region="${region}"
+readonly AWS_REGION="${region}"
 
 # AWS Secrets Manager (ARNs)
-secret_consul_license="${consul_license_secret_arn}"
-secret_consul_gossip_key="${consul_gossip_key_secret_arn}"
-
-# AWS SSM Parameter Store
-vault_ca_bundle_ssm_name="${vault_ca_bundle_ssm_name}"
-
-# Vault
-vault_version="${vault_version}"
-vault_addr="${vault_addr}"
-vault_pki_mount="${vault_pki_mount}"
-vault_pki_role="${vault_pki_role}"
-vault_aws_auth_role="${vault_aws_auth_role}"
-consul_server_cert_ttl="${consul_server_cert_ttl}"
+readonly SECRET_CONSUL_LICENSE="${consul_license_secret_arn}"
+readonly SECRET_CONSUL_GOSSIP_KEY="${consul_gossip_key_secret_arn}"
+readonly SECRET_CONSUL_CA_CERT="${consul_ca_cert_secret_arn}"
+readonly SECRET_CONSUL_SERVER_CERT="${consul_server_cert_secret_arn}"
+readonly SECRET_CONSUL_SERVER_KEY="${consul_server_key_secret_arn}"
 
 # Cluster identity
-consul_fqdn="${consul_fqdn}"
-consul_datacenter="${consul_datacenter}"
-route53_zone_name="${route53_zone_name}"
+readonly CONSUL_FQDN="${consul_fqdn}"
+readonly CONSUL_DATACENTER="${consul_datacenter}"
+readonly ROUTE53_ZONE_NAME="${route53_zone_name}"
 
-# Node identity
-node_id="${node_id}"
+# Cluster coordination
+readonly CONSUL_CLUSTER_TAG_KEY="${consul_cluster_tag_key}"
+readonly CONSUL_CLUSTER_TAG_VALUE="${consul_cluster_tag_value}"
+readonly CONSUL_CLUSTER_STATE_SSM_NAME="${consul_cluster_state_ssm_name}"
+
+# AWS Secrets Manager (ARNs) — bootstrap tokens
+readonly SECRET_CONSUL_BOOTSTRAP_TOKEN="${consul_bootstrap_token_secret_arn}"
 
 # EC2 metadata service (IMDSv2)
-imds_endpoint="http://169.254.169.254"
-imds_token_ttl="21600"
+readonly IMDS_ENDPOINT="http://169.254.169.254"
+readonly IMDS_TOKEN_TTL="21600"
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -103,15 +96,15 @@ log_error() {
 
 imds_token() {
   curl -s -X PUT \
-    -H "X-aws-ec2-metadata-token-ttl-seconds: $${imds_token_ttl}" \
-    "$${imds_endpoint}/latest/api/token"
+    -H "X-aws-ec2-metadata-token-ttl-seconds: $${IMDS_TOKEN_TTL}" \
+    "$${IMDS_ENDPOINT}/latest/api/token"
 }
 
 imds_get() {
   path="$${1}"
   token="$${2}"
   curl -s -H "X-aws-ec2-metadata-token: $${token}" \
-    "$${imds_endpoint}/latest/meta-data/$${path}"
+    "$${IMDS_ENDPOINT}/latest/meta-data/$${path}"
 }
 
 get_private_ip() {
@@ -137,9 +130,20 @@ fetch_secret() {
   secret_arn="$${1}"
   aws secretsmanager get-secret-value \
     --secret-id "$${secret_arn}" \
-    --region "$${aws_region}" \
+    --region "$${AWS_REGION}" \
     --query 'SecretString' \
     --output text
+}
+
+put_secret() {
+  secret_arn="$${1}"
+  secret_value="$${2}"
+
+  aws secretsmanager put-secret-value \
+    --secret-id "$${secret_arn}" \
+    --secret-string "$${secret_value}" \
+    --region "$${AWS_REGION}" \
+    >/dev/null
 }
 
 # ---------------------------------------------------------------------------
@@ -150,9 +154,57 @@ fetch_ssm_parameter() {
   name="$${1}"
   aws ssm get-parameter \
     --name "$${name}" \
-    --region "$${aws_region}" \
+    --region "$${AWS_REGION}" \
     --query 'Parameter.Value' \
     --output text
+}
+
+put_ssm_parameter() {
+  name="$${1}"
+  value="$${2}"
+
+  aws ssm put-parameter \
+    --name "$${name}" \
+    --value "$${value}" \
+    --overwrite \
+    --region "$${AWS_REGION}" \
+    >/dev/null
+}
+
+# ---------------------------------------------------------------------------
+# Consul cluster discovery (bootstrap node election)
+# ---------------------------------------------------------------------------
+
+is_bootstrap_node() {
+  instance_id="$(get_instance_id)"
+
+  all_ids="$(
+    aws ec2 describe-instances \
+      --filters \
+      "Name=tag:$${CONSUL_CLUSTER_TAG_KEY},Values=$${CONSUL_CLUSTER_TAG_VALUE}" \
+      "Name=instance-state-name,Values=running" \
+      --query "Reservations[].Instances[].InstanceId" \
+      --region "$${AWS_REGION}" \
+      --output text
+  )"
+
+  lowest_id="$(printf '%s' "$${all_ids}" | tr '\t' '\n' | sort | head -1)"
+
+  [ "$${instance_id}" = "$${lowest_id}" ]
+}
+
+get_consul_node_role() {
+  cluster_state="$(fetch_ssm_parameter "$${CONSUL_CLUSTER_STATE_SSM_NAME}" 2>/dev/null)" || cluster_state=""
+
+  if [ "$${cluster_state}" = "Ready" ]; then
+    printf 'follower'
+  else
+    if is_bootstrap_node; then
+      printf 'bootstrap'
+    else
+      printf 'follower'
+    fi
+  fi
 }
 
 # ---------------------------------------------------------------------------
@@ -173,12 +225,12 @@ prepare_system() {
   fi
 
   # Directories on root volume
-  mkdir -p "$${consul_config_dir}/tls"
-  mkdir -p "$${consul_data_dir}"
-  mkdir -p "$(dirname "$${snapshot_config_file}")"
+  mkdir -p "$${CONSUL_CONFIG_DIR}/tls"
+  mkdir -p "$${CONSUL_DATA_DIR}"
+  mkdir -p "$(dirname "$${SNAPSHOT_CONFIG_FILE}")"
 
-  chown -R consul:consul "$${consul_config_dir}"
-  chown -R consul:consul "$${consul_data_dir}"
+  chown -R consul:consul "$${CONSUL_CONFIG_DIR}"
+  chown -R consul:consul "$${CONSUL_DATA_DIR}"
 }
 
 # ---------------------------------------------------------------------------
@@ -221,45 +273,45 @@ resolve_ebs_nvme_device() {
 }
 
 mount_data_volume() {
-  log_info "Resolving EBS volume attached as $${ebs_data_device_name}"
+  log_info "Resolving EBS volume attached as $${EBS_DATA_DEVICE_NAME}"
 
   if ! command -v ebsnvme-id >/dev/null 2>&1; then
     log_error "ebsnvme-id not found — ensure amazon-ec2-utils is installed in the AMI"
     return 1
   fi
 
-  device="$(resolve_ebs_nvme_device "$${ebs_data_device_name}")" || {
-    log_error "No NVMe device found matching EBS attachment $${ebs_data_device_name}"
+  device="$(resolve_ebs_nvme_device "$${EBS_DATA_DEVICE_NAME}")" || {
+    log_error "No NVMe device found matching EBS attachment $${EBS_DATA_DEVICE_NAME}"
     return 1
   }
 
-  log_info "Matched $${ebs_data_device_name} -> $${device}"
+  log_info "Matched $${EBS_DATA_DEVICE_NAME} -> $${device}"
 
   # Format only if the device has no existing filesystem
   if ! blkid -p "$${device}" >/dev/null 2>&1; then
-    log_info "Formatting $${device} as $${ebs_data_filesystem}"
-    "mkfs.$${ebs_data_filesystem}" "$${device}"
+    log_info "Formatting $${device} as $${EBS_DATA_FILESYSTEM}"
+    "mkfs.$${EBS_DATA_FILESYSTEM}" "$${device}"
   else
     log_info "Filesystem already present on $${device}, skipping format"
   fi
 
   # Mount
-  mkdir -p "$${ebs_data_mount}"
-  mount -t "$${ebs_data_filesystem}" "$${device}" "$${ebs_data_mount}"
-  log_info "Mounted $${device} at $${ebs_data_mount}"
+  mkdir -p "$${EBS_DATA_MOUNT}"
+  mount -t "$${EBS_DATA_FILESYSTEM}" "$${device}" "$${EBS_DATA_MOUNT}"
+  log_info "Mounted $${device} at $${EBS_DATA_MOUNT}"
 
   # Persist in fstab (use UUID for stability across reboots)
   uuid="$(blkid -s UUID -o value "$${device}")"
   if ! grep -q "$${uuid}" /etc/fstab; then
     printf 'UUID=%s  %s  %s  defaults,nofail  0  2\n' \
-      "$${uuid}" "$${ebs_data_mount}" "$${ebs_data_filesystem}" \
+      "$${uuid}" "$${EBS_DATA_MOUNT}" "$${EBS_DATA_FILESYSTEM}" \
       >>/etc/fstab
     log_info "Added fstab entry for UUID=$${uuid}"
   fi
 
   # Create subdirectories on the mounted volume
-  mkdir -p "$${consul_data_dir}"
-  chown -R consul:consul "$${ebs_data_mount}"
+  mkdir -p "$${CONSUL_DATA_DIR}"
+  chown -R consul:consul "$${EBS_DATA_MOUNT}"
 }
 
 # ---------------------------------------------------------------------------
@@ -322,13 +374,13 @@ download_and_verify_release() {
 # ---------------------------------------------------------------------------
 
 install_consul() {
-  log_info "Installing Consul Enterprise $${consul_version}"
+  log_info "Installing Consul Enterprise $${CONSUL_VERSION}"
   tmp_dir="$(mktemp -d)"
 
   arch="$(detect_system_architecture)"
-  download_and_verify_release "consul" "$${consul_version}" "$${arch}" "$${tmp_dir}"
+  download_and_verify_release "consul" "$${CONSUL_VERSION}" "$${arch}" "$${tmp_dir}"
 
-  unzip -o -q "$${tmp_dir}/consul_$${consul_version}_linux_$${arch}.zip" -d "$${tmp_dir}"
+  unzip -o -q "$${tmp_dir}/consul_$${CONSUL_VERSION}_linux_$${arch}.zip" -d "$${tmp_dir}"
   mv "$${tmp_dir}/consul" /usr/local/bin/consul
   chmod 0755 /usr/local/bin/consul
   rm -rf "$${tmp_dir}"
@@ -337,74 +389,20 @@ install_consul() {
 }
 
 # ---------------------------------------------------------------------------
-# Install Vault CLI (used only to authenticate and issue PKI certificates)
+# Fetch Consul TLS materials from Secrets Manager
 # ---------------------------------------------------------------------------
 
-install_vault() {
-  log_info "Installing Vault CLI $${vault_version}"
-  tmp_dir="$(mktemp -d)"
+fetch_consul_tls() {
+  log_info "Fetching Consul TLS materials from Secrets Manager"
 
-  arch="$(detect_system_architecture)"
-  download_and_verify_release "vault" "$${vault_version}" "$${arch}" "$${tmp_dir}"
+  mkdir -p "$(dirname "$${TLS_CA_FILE}")"
 
-  unzip -o -q "$${tmp_dir}/vault_$${vault_version}_linux_$${arch}.zip" -d "$${tmp_dir}"
-  mv "$${tmp_dir}/vault" /usr/local/bin/vault
-  chmod 0755 /usr/local/bin/vault
-  rm -rf "$${tmp_dir}"
+  fetch_secret "$${SECRET_CONSUL_CA_CERT}" >"$${TLS_CA_FILE}"
+  fetch_secret "$${SECRET_CONSUL_SERVER_CERT}" >"$${TLS_CERT_FILE}"
+  fetch_secret "$${SECRET_CONSUL_SERVER_KEY}" >"$${TLS_KEY_FILE}"
 
-  vault version
-}
-
-# ---------------------------------------------------------------------------
-# Issue Consul server TLS materials from Vault PKI
-# ---------------------------------------------------------------------------
-
-issue_consul_tls_from_vault() {
-  log_info "Fetching Vault CA bundle from SSM ($${vault_ca_bundle_ssm_name})"
-
-  mkdir -p "$(dirname "$${vault_ca_file}")"
-  fetch_ssm_parameter "$${vault_ca_bundle_ssm_name}" >"$${vault_ca_file}"
-  chmod 0644 "$${vault_ca_file}"
-
-  export VAULT_ADDR="$${vault_addr}"
-  export VAULT_CACERT="$${vault_ca_file}"
-
-  log_info "Authenticating to Vault via AWS IAM auth"
-  vault_token="$(
-    vault login \
-      -format=json \
-      -method=aws \
-      role="$${vault_aws_auth_role}" |
-      jq -r '.auth.client_token'
-  )"
-  export VAULT_TOKEN="$${vault_token}"
-
-  log_info "Requesting Consul server certificate from $${vault_pki_mount}/issue/$${vault_pki_role}"
-  cert_json="$(
-    vault write -format=json "$${vault_pki_mount}/issue/$${vault_pki_role}" \
-      common_name="$${consul_fqdn}" \
-      alt_names="server.$${consul_datacenter}.consul,*.$${route53_zone_name},localhost" \
-      ip_sans="127.0.0.1" \
-      ttl="$${consul_server_cert_ttl}"
-  )"
-
-  mkdir -p "$(dirname "$${tls_ca_file}")"
-
-  # Assemble the full chain of trust — issuing intermediate(s) + root.
-  printf '%s\n' "$(printf '%s' "$${cert_json}" | jq -r '.data.issuing_ca')" >"$${tls_ca_file}"
-  ca_chain="$(printf '%s' "$${cert_json}" | jq -r 'if (.data.ca_chain // []) | length > 0 then .data.ca_chain[] else empty end')"
-  if [ -n "$${ca_chain}" ]; then
-    printf '%s\n' "$${ca_chain}" >>"$${tls_ca_file}"
-  fi
-
-  printf '%s\n' "$(printf '%s' "$${cert_json}" | jq -r '.data.certificate')" >"$${tls_cert_file}"
-  printf '%s\n' "$(printf '%s' "$${cert_json}" | jq -r '.data.private_key')" >"$${tls_key_file}"
-
-  chown consul:consul "$${tls_ca_file}" "$${tls_cert_file}" "$${tls_key_file}"
-  chmod 0640 "$${tls_ca_file}" "$${tls_cert_file}" "$${tls_key_file}"
-
-  # Drop the short-lived Vault token; the cert and key are on disk now.
-  unset VAULT_TOKEN
+  chown consul:consul "$${TLS_CA_FILE}" "$${TLS_CERT_FILE}" "$${TLS_KEY_FILE}"
+  chmod 0640 "$${TLS_CA_FILE}" "$${TLS_CERT_FILE}" "$${TLS_KEY_FILE}"
 }
 
 # ---------------------------------------------------------------------------
@@ -414,13 +412,13 @@ issue_consul_tls_from_vault() {
 write_secrets() {
   log_info "Fetching secrets from AWS Secrets Manager"
 
-  consul_license="$(fetch_secret "$${secret_consul_license}")"
-  gossip_key="$(fetch_secret "$${secret_consul_gossip_key}")"
+  consul_license="$(fetch_secret "$${SECRET_CONSUL_LICENSE}")"
+  gossip_key="$(fetch_secret "$${SECRET_CONSUL_GOSSIP_KEY}")"
 
   # Write the license file
-  printf '%s' "$${consul_license}" >"$${consul_license_path}"
-  chown consul:consul "$${consul_license_path}"
-  chmod 0640 "$${consul_license_path}"
+  printf '%s' "$${consul_license}" >"$${CONSUL_LICENSE_PATH}"
+  chown consul:consul "$${CONSUL_LICENSE_PATH}"
+  chmod 0640 "$${CONSUL_LICENSE_PATH}"
 }
 
 # ---------------------------------------------------------------------------
@@ -434,42 +432,42 @@ write_consul_config() {
 
   # consul.hcl — contains $${gossip_key} and $${private_ip} shell variables,
   # needs unquoted heredoc.
-  cat >"$${consul_config_dir}/consul.hcl" <<EOF
+  cat >"$${CONSUL_CONFIG_DIR}/consul.hcl" <<EOF
 ${config_server_consul_hcl}
 EOF
 
   # --- Server stanza ---
-  cat >"$${consul_config_dir}/server.hcl" <<'EOF'
+  cat >"$${CONSUL_CONFIG_DIR}/server.hcl" <<'EOF'
 ${config_server_server_hcl}
 EOF
 
   # Static configuration files — single-quoted heredocs (no shell expansion).
-  cat >"$${consul_config_dir}/acl.hcl" <<'EOF'
+  cat >"$${CONSUL_CONFIG_DIR}/acl.hcl" <<'EOF'
 ${config_server_acl_hcl}
 EOF
 
-  cat >"$${consul_config_dir}/auto-encrypt.hcl" <<'EOF'
+  cat >"$${CONSUL_CONFIG_DIR}/auto-encrypt.hcl" <<'EOF'
 ${config_server_auto_encrypt_hcl}
 EOF
 
-  cat >"$${consul_config_dir}/performance.hcl" <<'EOF'
+  cat >"$${CONSUL_CONFIG_DIR}/performance.hcl" <<'EOF'
 ${config_server_performance_hcl}
 EOF
 
-  cat >"$${consul_config_dir}/ports.hcl" <<'EOF'
+  cat >"$${CONSUL_CONFIG_DIR}/ports.hcl" <<'EOF'
 ${config_server_ports_hcl}
 EOF
 
-  cat >"$${consul_config_dir}/tls.hcl" <<'EOF'
+  cat >"$${CONSUL_CONFIG_DIR}/tls.hcl" <<'EOF'
 ${config_server_tls_hcl}
 EOF
 
-  cat >"$${consul_config_dir}/ui.hcl" <<'EOF'
+  cat >"$${CONSUL_CONFIG_DIR}/ui.hcl" <<'EOF'
 ${config_server_ui_hcl}
 EOF
 
-  chown -R consul:consul "$${consul_config_dir}"
-  find "$${consul_config_dir}" -type f -name '*.hcl' -exec chmod 0640 {} \;
+  chown -R consul:consul "$${CONSUL_CONFIG_DIR}"
+  find "$${CONSUL_CONFIG_DIR}" -type f -name '*.hcl' -exec chmod 0640 {} \;
 }
 
 # ---------------------------------------------------------------------------
@@ -492,16 +490,16 @@ configure_snapshot_agent() {
   log_info "Writing Consul Snapshot Agent configuration"
 
   # Write the Consul Snapshot Agent configuration (must be JSON, not HCL).
-  cat >"$${snapshot_config_file}" <<'EOF'
+  cat >"$${SNAPSHOT_CONFIG_FILE}" <<'EOF'
 ${config_snapshot_agent_json}
 EOF
-  chown consul:consul "$${snapshot_config_file}"
-  chmod 0640 "$${snapshot_config_file}"
+  chown consul:consul "$${SNAPSHOT_CONFIG_FILE}"
+  chmod 0640 "$${SNAPSHOT_CONFIG_FILE}"
 
   # Write the token placeholder for the Consul Snapshot Agent.
-  printf 'CONSUL_HTTP_TOKEN=\n' >"$${snapshot_token_file}"
-  chown consul:consul "$${snapshot_token_file}"
-  chmod 0600 "$${snapshot_token_file}"
+  printf 'CONSUL_HTTP_TOKEN=\n' >"$${SNAPSHOT_TOKEN_FILE}"
+  chown consul:consul "$${SNAPSHOT_TOKEN_FILE}"
+  chmod 0600 "$${SNAPSHOT_TOKEN_FILE}"
 
   # Write the systemd unit for the Consul Snapshot Agent.
   cat >/etc/systemd/system/consul-snapshot-agent.service <<'EOF'
@@ -509,6 +507,100 @@ ${config_snapshot_agent_service}
 EOF
 
   systemctl daemon-reload
+}
+
+# ---------------------------------------------------------------------------
+# Consul CLI environment
+# ---------------------------------------------------------------------------
+
+configure_consul_env() {
+  export CONSUL_HTTP_ADDR="https://127.0.0.1:8501"
+  export CONSUL_CACERT="$${TLS_CA_FILE}"
+  export CONSUL_CLIENT_CERT="$${TLS_CERT_FILE}"
+  export CONSUL_CLIENT_KEY="$${TLS_KEY_FILE}"
+}
+
+# ---------------------------------------------------------------------------
+# ACL bootstrap and token provisioning
+# ---------------------------------------------------------------------------
+
+bootstrap_consul_acl() {
+  log_info "Bootstrapping Consul ACL system"
+
+  bootstrap_output="$(consul acl bootstrap -format=json)"
+  bootstrap_token="$(printf '%s' "$${bootstrap_output}" | jq -r '.SecretID')"
+
+  log_info "Storing bootstrap token in Secrets Manager"
+  put_secret "$${SECRET_CONSUL_BOOTSTRAP_TOKEN}" "$${bootstrap_token}"
+
+  export CONSUL_HTTP_TOKEN="$${bootstrap_token}"
+
+  log_info "ACL bootstrap complete"
+}
+
+create_agent_token() {
+  node_name="$${1}"
+  datacenter="$${2}"
+
+  log_info "Creating agent token with node identity for $${node_name}"
+
+  consul acl token create \
+    -partition "default" \
+    -description "Agent Token ($${node_name})" \
+    -node-identity "$${node_name}:$${datacenter}" \
+    -format=json |
+    jq -r '.SecretID'
+}
+
+apply_agent_token() {
+  agent_token="$${1}"
+
+  log_info "Setting agent token on local node"
+  consul acl set-agent-token agent "$${agent_token}"
+
+  log_info "Agent token applied"
+}
+
+mark_cluster_ready() {
+  log_info "Writing cluster state: Ready"
+  put_ssm_parameter "$${CONSUL_CLUSTER_STATE_SSM_NAME}" "Ready"
+}
+
+wait_for_bootstrap() {
+  log_info "Waiting for the bootstrap node to initialize the ACL system"
+
+  # 60 attempts x 5s = 5 minutes.
+  max_attempts=60
+  attempt=0
+  while [ "$${attempt}" -lt "$${max_attempts}" ]; do
+    attempt=$((attempt + 1))
+
+    state="$(fetch_ssm_parameter "$${CONSUL_CLUSTER_STATE_SSM_NAME}")" || true
+    if [ "$${state}" = "Ready" ]; then
+      log_info "Cluster is initialized, proceeding"
+      return 0
+    fi
+
+    log_info "Cluster is not initialized (attempt $${attempt}/$${max_attempts}), waiting"
+    sleep 5
+  done
+
+  log_error "Cluster was not initialized after $${max_attempts} attempts"
+  return 1
+}
+
+start_snapshot_agent() {
+  log_info "Configuring snapshot agent with bootstrap token"
+
+  bootstrap_token="$(fetch_secret "$${SECRET_CONSUL_BOOTSTRAP_TOKEN}")"
+
+  printf 'CONSUL_HTTP_TOKEN=%s\n' "$${bootstrap_token}" >"$${SNAPSHOT_TOKEN_FILE}"
+  chown consul:consul "$${SNAPSHOT_TOKEN_FILE}"
+  chmod 0600 "$${SNAPSHOT_TOKEN_FILE}"
+
+  systemctl enable --now consul-snapshot-agent
+
+  log_info "Snapshot agent started"
 }
 
 # ---------------------------------------------------------------------------
@@ -528,9 +620,9 @@ start_services() {
   max_retries=30
   while [ "$${retries}" -lt "$${max_retries}" ]; do
     if curl -sf \
-      --cacert "$${tls_ca_file}" \
-      --cert "$${tls_cert_file}" \
-      --key "$${tls_key_file}" \
+      --cacert "$${TLS_CA_FILE}" \
+      --cert "$${TLS_CERT_FILE}" \
+      --key "$${TLS_KEY_FILE}" \
       https://127.0.0.1:8501/v1/status/leader | grep -q '.'; then
       log_info "Consul server is accepting connections"
       break
@@ -543,11 +635,6 @@ start_services() {
   if [ "$${retries}" -ge "$${max_retries}" ]; then
     log_warn "Consul did not become healthy within timeout"
   fi
-
-  # Consul Snapshot Agent is not started automatically.
-  # Its ACL token must be provisioned after cluster bootstrap.
-  # Once the token is set in the snapshot-token file, enable and start manually:
-  #   systemctl enable --now consul-snapshot-agent
 
   log_info "All services started"
 }
@@ -562,20 +649,46 @@ main() {
   private_ip="$(get_private_ip)"
   instance_id="$(get_instance_id)"
 
-  log_info "Instance $${node_id} ($${instance_id}) at $${private_ip}"
+  log_info "Instance $${instance_id} at $${private_ip}"
 
   prepare_system
   mount_data_volume
   install_consul
-  install_vault
 
-  issue_consul_tls_from_vault
+  fetch_consul_tls
   write_secrets
   write_consul_config "$${private_ip}"
   write_consul_systemd_unit
   configure_snapshot_agent
 
+  # Determine this node's role before starting services.
+  consul_node_role="$(get_consul_node_role)"
+  log_info "Node role: $${consul_node_role}"
+
   start_services
+
+  # Set up Consul CLI environment for ACL operations.
+  configure_consul_env
+
+  # ACL bootstrap and token provisioning.
+  if [ "$${consul_node_role}" = "bootstrap" ]; then
+    log_info "=== Bootstrap Node: Initializing ACL system ==="
+    bootstrap_consul_acl
+    agent_token="$(create_agent_token "$${instance_id}" "$${CONSUL_DATACENTER}")"
+    apply_agent_token "$${agent_token}"
+    mark_cluster_ready
+  else
+    log_info "=== Follower Node: Waiting for ACL bootstrap ==="
+    wait_for_bootstrap
+
+    bootstrap_token="$(fetch_secret "$${SECRET_CONSUL_BOOTSTRAP_TOKEN}")"
+    export CONSUL_HTTP_TOKEN="$${bootstrap_token}"
+
+    agent_token="$(create_agent_token "$${instance_id}" "$${CONSUL_DATACENTER}")"
+    apply_agent_token "$${agent_token}"
+  fi
+
+  start_snapshot_agent
 
   log_info "=== Bootstrap complete ==="
 }

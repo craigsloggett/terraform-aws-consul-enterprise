@@ -1,14 +1,15 @@
 locals {
   consul_fqdn       = "${var.consul_subdomain}.${var.route53_zone.name}"
-  consul_node_count = 3
   azs               = slice(data.aws_availability_zones.available.names, 0, 3)
   cluster_tag_key   = "consul-cluster"
   cluster_tag_value = var.project_name
-  ebs_device_name   = "/dev/xvdf"
 
-  vault_tls_ca_bundle_ssm_parameter_name = coalesce(
-    var.vault_tls_ca_bundle_ssm_parameter_name,
-    "/${var.project_name}/vault/tls/ca-bundle",
+  # Maximum nodes that can be out during instance refresh while maintaining quorum.
+  #  floor( ( n-1 ) / n * 100 ) gives:
+  #   n=3 →  66%  (1 node out, 2 healthy)
+  #   n=5 →  80%  (1 node out, 4 healthy)
+  instance_refresh_min_healthy_pct = floor(
+    (var.consul_node_count - 1) / var.consul_node_count * 100
   )
 
   created_vpc = var.existing_vpc == null ? module.vpc[0] : null
@@ -50,7 +51,7 @@ locals {
   })
 
   config_server_server_hcl = templatefile("${path.module}/templates/server.hcl.tftpl", {
-    bootstrap_expect = local.consul_node_count
+    bootstrap_expect = var.consul_node_count
   })
 
   config_snapshot_agent_json = templatefile("${path.module}/templates/snapshot-agent.json.tftpl", {

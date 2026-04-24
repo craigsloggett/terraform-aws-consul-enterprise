@@ -33,6 +33,9 @@ data "aws_iam_policy_document" "consul_secrets_manager" {
     resources = [
       aws_secretsmanager_secret.consul_enterprise_license.arn,
       aws_secretsmanager_secret.consul_gossip_key.arn,
+      aws_secretsmanager_secret.consul_ca_cert.arn,
+      aws_secretsmanager_secret.consul_server_cert.arn,
+      aws_secretsmanager_secret.consul_server_key.arn,
     ]
   }
 }
@@ -43,41 +46,42 @@ resource "aws_iam_role_policy" "consul_secrets_manager" {
   policy      = data.aws_iam_policy_document.consul_secrets_manager.json
 }
 
-# SSM Parameter Store (Vault PKI managed TLS CA bundle)
+# SSM Parameter Store (cluster coordination)
 
-data "aws_iam_policy_document" "consul_vault_ca_bundle" {
+data "aws_iam_policy_document" "consul_cluster_state" {
   statement {
-    effect  = "Allow"
-    actions = ["ssm:GetParameter"]
-    resources = [
-      "arn:aws:ssm:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:parameter${local.vault_tls_ca_bundle_ssm_parameter_name}",
+    effect = "Allow"
+    actions = [
+      "ssm:GetParameter",
+      "ssm:PutParameter",
     ]
+    resources = [aws_ssm_parameter.consul_cluster_state.arn]
   }
 }
 
-resource "aws_iam_role_policy" "consul_vault_ca_bundle" {
-  name_prefix = "${var.project_name}-vault-ca-"
+resource "aws_iam_role_policy" "consul_cluster_state" {
+  name_prefix = "${var.project_name}-cluster-state-"
   role        = aws_iam_role.consul.id
-  policy      = data.aws_iam_policy_document.consul_vault_ca_bundle.json
+  policy      = data.aws_iam_policy_document.consul_cluster_state.json
 }
 
-# Secrets Manager (Nomad ACL token — read/write during initialization)
+# Secrets Manager (bootstrap token — read/write during initialization)
 
-data "aws_iam_policy_document" "consul_nomad_token" {
+data "aws_iam_policy_document" "consul_bootstrap_token" {
   statement {
     effect = "Allow"
     actions = [
       "secretsmanager:GetSecretValue",
       "secretsmanager:PutSecretValue",
     ]
-    resources = [aws_secretsmanager_secret.consul_nomad_token.arn]
+    resources = [aws_secretsmanager_secret.consul_bootstrap_token.arn]
   }
 }
 
-resource "aws_iam_role_policy" "consul_nomad_token" {
-  name_prefix = "${var.project_name}-nomad-token-"
+resource "aws_iam_role_policy" "consul_bootstrap_token" {
+  name_prefix = "${var.project_name}-bootstrap-token-"
   role        = aws_iam_role.consul.id
-  policy      = data.aws_iam_policy_document.consul_nomad_token.json
+  policy      = data.aws_iam_policy_document.consul_bootstrap_token.json
 }
 
 # S3 (snapshots)
