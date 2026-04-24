@@ -37,6 +37,7 @@ resource "aws_lb_listener" "consul" {
   load_balancer_arn = aws_lb.consul.arn
   port              = 443
   protocol          = "TLS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-3-PQ-2025-09"
   certificate_arn   = aws_acm_certificate_validation.consul.certificate_arn
 
   default_action {
@@ -44,4 +45,3 @@ resource "aws_lb_listener" "consul" {
     target_group_arn = aws_lb_target_group.consul.arn
   }
 }
-
