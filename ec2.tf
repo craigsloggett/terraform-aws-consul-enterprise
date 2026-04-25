@@ -48,7 +48,7 @@ resource "aws_launch_template" "consul" {
     consul_license_secret_arn    = aws_secretsmanager_secret.consul_enterprise_license.arn
     consul_gossip_key_secret_arn = aws_secretsmanager_secret.consul_gossip_key.arn
 
-    consul_ca_cert_secret_arn     = aws_secretsmanager_secret.consul_ca_cert.arn
+    consul_ca_secret_arn          = aws_secretsmanager_secret.consul_ca.arn
     consul_server_cert_secret_arn = aws_secretsmanager_secret.consul_server_cert.arn
     consul_server_key_secret_arn  = aws_secretsmanager_secret.consul_server_key.arn
 

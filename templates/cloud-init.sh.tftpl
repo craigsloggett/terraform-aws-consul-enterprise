@@ -53,7 +53,7 @@ readonly AWS_REGION="${region}"
 # AWS Secrets Manager (ARNs)
 readonly SECRET_CONSUL_LICENSE="${consul_license_secret_arn}"
 readonly SECRET_CONSUL_GOSSIP_KEY="${consul_gossip_key_secret_arn}"
-readonly SECRET_CONSUL_CA_CERT="${consul_ca_cert_secret_arn}"
+readonly SECRET_CONSUL_CA="${consul_ca_secret_arn}"
 readonly SECRET_CONSUL_SERVER_CERT="${consul_server_cert_secret_arn}"
 readonly SECRET_CONSUL_SERVER_KEY="${consul_server_key_secret_arn}"
 
@@ -397,7 +397,7 @@ fetch_consul_tls() {
 
   mkdir -p "$(dirname "$${TLS_CA_FILE}")"
 
-  fetch_secret "$${SECRET_CONSUL_CA_CERT}" >"$${TLS_CA_FILE}"
+  fetch_secret "$${SECRET_CONSUL_CA}" >"$${TLS_CA_FILE}"
   fetch_secret "$${SECRET_CONSUL_SERVER_CERT}" >"$${TLS_CERT_FILE}"
   fetch_secret "$${SECRET_CONSUL_SERVER_KEY}" >"$${TLS_KEY_FILE}"
 
