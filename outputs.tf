@@ -38,8 +38,8 @@ output "ec2_ami_name" {
   value       = var.ec2_ami.name
 }
 
-output "consul_ca_cert" {
-  description = "Self-signed CA certificate for trusting the Consul TLS chain."
+output "consul_ca" {
+  description = "Self-signed CA for trusting the Consul TLS chain."
   value       = tls_self_signed_cert.consul_ca.cert_pem
   sensitive   = true
 }

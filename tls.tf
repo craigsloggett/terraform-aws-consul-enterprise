@@ -94,16 +94,26 @@ resource "tls_locally_signed_cert" "consul_server" {
 
 # TLS Secrets
 
-resource "aws_secretsmanager_secret" "consul_ca_cert" {
-  name_prefix = "${var.project_name}-consul-ca-cert-"
-  description = "Consul Self-signed CA Certificate"
+resource "aws_secretsmanager_secret" "consul_ca" {
+  name_prefix = "${var.project_name}-consul-ca-"
+  description = "Consul Self-signed CA"
 
-  tags = merge(var.common_tags, { Name = "${var.project_name}-consul-ca-cert" })
+  tags = merge(var.common_tags, { Name = "${var.project_name}-consul-ca" })
 }
 
-resource "aws_secretsmanager_secret_version" "consul_ca_cert" {
-  secret_id     = aws_secretsmanager_secret.consul_ca_cert.id
+resource "aws_secretsmanager_secret_version" "consul_ca" {
+  secret_id     = aws_secretsmanager_secret.consul_ca.id
   secret_string = tls_self_signed_cert.consul_ca.cert_pem
+}
+
+moved {
+  from = aws_secretsmanager_secret.consul_ca_cert
+  to   = aws_secretsmanager_secret.consul_ca
+}
+
+moved {
+  from = aws_secretsmanager_secret_version.consul_ca_cert
+  to   = aws_secretsmanager_secret_version.consul_ca
 }
 
 resource "aws_secretsmanager_secret" "consul_server_cert" {
