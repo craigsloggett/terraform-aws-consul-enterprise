@@ -6,64 +6,6 @@ A Terraform module for deploying HashiCorp Consul Enterprise on AWS.
 
 ### main.tf
 ```hcl
-resource "tls_private_key" "consul_ca" {
-  algorithm   = "ECDSA"
-  ecdsa_curve = "P384"
-}
-
-resource "tls_self_signed_cert" "consul_ca" {
-  private_key_pem = tls_private_key.consul_ca.private_key_pem
-
-  subject {
-    common_name = "Example Consul CA"
-  }
-
-  validity_period_hours = 87600
-  is_ca_certificate     = true
-
-  allowed_uses = [
-    "cert_signing",
-    "crl_signing",
-  ]
-}
-
-resource "tls_private_key" "consul_server" {
-  algorithm   = "ECDSA"
-  ecdsa_curve = "P384"
-}
-
-resource "tls_cert_request" "consul_server" {
-  private_key_pem = tls_private_key.consul_server.private_key_pem
-
-  subject {
-    common_name = "consul.example.com"
-  }
-
-  dns_names = [
-    "server.dc1.consul",
-    "*.example.com",
-    "consul.example.com",
-    "localhost",
-  ]
-
-  ip_addresses = ["127.0.0.1"]
-}
-
-resource "tls_locally_signed_cert" "consul_server" {
-  cert_request_pem   = tls_cert_request.consul_server.cert_request_pem
-  ca_private_key_pem = tls_private_key.consul_ca.private_key_pem
-  ca_cert_pem        = tls_self_signed_cert.consul_ca.cert_pem
-
-  validity_period_hours = 8760
-
-  allowed_uses = [
-    "digital_signature",
-    "key_encipherment",
-    "server_auth",
-    "client_auth",
-  ]
-}
-
 resource "random_id" "gossip_key" {
   byte_length = 32
 }
@@ -75,10 +17,12 @@ module "consul" {
   consul_enterprise_license = var.consul_enterprise_license
   ec2_key_pair_name         = "example"
 
-  consul_ca_cert_pem     = tls_self_signed_cert.consul_ca.cert_pem
-  consul_server_cert_pem = tls_locally_signed_cert.consul_server.cert_pem
-  consul_server_key_pem  = tls_private_key.consul_server.private_key_pem
-  consul_gossip_key      = random_id.gossip_key.b64_std
+  consul_gossip_key = random_id.gossip_key.b64_std
+
+  vault_address       = "https://vault.example.com:8200"
+  vault_ca_cert_pem   = var.vault_ca_cert_pem
+  vault_aws_auth_role = "consul-server"
+  vault_agent_version = "1.18.4"
 
   ec2_ami = {
     id   = "ami-0example"
@@ -113,15 +57,12 @@ module "consul" {
 | <a name="input_bastion_instance_type"></a> [bastion\_instance\_type](#input\_bastion\_instance\_type) | EC2 instance type for the bastion host. | `string` | `"t3.micro"` | no |
 | <a name="input_common_tags"></a> [common\_tags](#input\_common\_tags) | Tags to apply to all resources. | `map(string)` | `{}` | no |
 | <a name="input_consul_api_allowed_cidrs"></a> [consul\_api\_allowed\_cidrs](#input\_consul\_api\_allowed\_cidrs) | CIDR blocks allowed to reach the Consul API (port 8501) from outside the VPC. Only effective when nlb\_internal is false. | `list(string)` | `[]` | no |
-| <a name="input_consul_ca_cert_pem"></a> [consul\_ca\_cert\_pem](#input\_consul\_ca\_cert\_pem) | PEM-encoded CA certificate trusted by the Consul cluster. | `string` | n/a | yes |
 | <a name="input_consul_datacenter"></a> [consul\_datacenter](#input\_consul\_datacenter) | Consul datacenter name. | `string` | `"dc1"` | no |
 | <a name="input_consul_ebs_volume_size"></a> [consul\_ebs\_volume\_size](#input\_consul\_ebs\_volume\_size) | Size in GiB of the EBS volume for Consul Raft storage. | `number` | `100` | no |
 | <a name="input_consul_enterprise_license"></a> [consul\_enterprise\_license](#input\_consul\_enterprise\_license) | Consul Enterprise license string. | `string` | n/a | yes |
 | <a name="input_consul_gossip_key"></a> [consul\_gossip\_key](#input\_consul\_gossip\_key) | Base64-encoded 32-byte gossip encryption key for the Consul cluster. | `string` | n/a | yes |
 | <a name="input_consul_node_count"></a> [consul\_node\_count](#input\_consul\_node\_count) | Number of Consul server nodes in the cluster. Must be 3 or 5 for Raft quorum. | `number` | `3` | no |
-| <a name="input_consul_server_cert_pem"></a> [consul\_server\_cert\_pem](#input\_consul\_server\_cert\_pem) | PEM-encoded TLS certificate for Consul server nodes. | `string` | n/a | yes |
 | <a name="input_consul_server_instance_type"></a> [consul\_server\_instance\_type](#input\_consul\_server\_instance\_type) | EC2 instance type for Consul server nodes. | `string` | `"m5.large"` | no |
-| <a name="input_consul_server_key_pem"></a> [consul\_server\_key\_pem](#input\_consul\_server\_key\_pem) | PEM-encoded TLS private key for Consul server nodes. | `string` | n/a | yes |
 | <a name="input_consul_snapshot_interval"></a> [consul\_snapshot\_interval](#input\_consul\_snapshot\_interval) | Interval between automated Raft snapshots (e.g., 1h, 30m, 24h). | `string` | `"1h"` | no |
 | <a name="input_consul_snapshot_retain"></a> [consul\_snapshot\_retain](#input\_consul\_snapshot\_retain) | Number of automated Raft snapshots to retain in S3. | `number` | `72` | no |
 | <a name="input_consul_subdomain"></a> [consul\_subdomain](#input\_consul\_subdomain) | Subdomain for the Consul DNS record. | `string` | `"consul"` | no |
@@ -172,16 +113,10 @@ module "consul" {
 | [aws_s3_bucket_server_side_encryption_configuration.consul_snapshots](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_server_side_encryption_configuration) | resource |
 | [aws_s3_bucket_versioning.consul_snapshots](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_versioning) | resource |
 | [aws_secretsmanager_secret.consul_bootstrap_token](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
-| [aws_secretsmanager_secret.consul_ca](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
 | [aws_secretsmanager_secret.consul_enterprise_license](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
 | [aws_secretsmanager_secret.consul_gossip_key](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
-| [aws_secretsmanager_secret.consul_server_cert](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
-| [aws_secretsmanager_secret.consul_server_key](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret) | resource |
-| [aws_secretsmanager_secret_version.consul_ca](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
 | [aws_secretsmanager_secret_version.consul_enterprise_license](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
 | [aws_secretsmanager_secret_version.consul_gossip_key](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
-| [aws_secretsmanager_secret_version.consul_server_cert](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
-| [aws_secretsmanager_secret_version.consul_server_key](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret_version) | resource |
 | [aws_security_group.bastion](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
 | [aws_security_group.consul](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |
 | [aws_security_group.vpc_endpoints](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/security_group) | resource |

@@ -34,9 +34,6 @@ data "aws_iam_policy_document" "consul_secrets_manager" {
     resources = [
       aws_secretsmanager_secret.consul_enterprise_license.arn,
       aws_secretsmanager_secret.consul_gossip_key.arn,
-      aws_secretsmanager_secret.consul_ca.arn,
-      aws_secretsmanager_secret.consul_server_cert.arn,
-      aws_secretsmanager_secret.consul_server_key.arn,
     ]
   }
 }

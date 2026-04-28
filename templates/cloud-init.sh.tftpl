@@ -7,7 +7,9 @@
 # Assumes:
 #   - Ubuntu or Debian
 #   - IAM instance profile with permissions for Secrets Manager, SSM, S3, EC2
-#   - Consul gossip key, Enterprise license, and TLS materials in AWS Secrets Manager
+#   - Consul gossip key and Enterprise license in AWS Secrets Manager
+#   - Vault cluster reachable from the instance, with a Consul-specific PKI
+#     mount and an AWS IAM auth role bound to this instance's IAM role
 
 # shellcheck disable=SC2034,SC2154,SC2170,SC2269
 # SC2034/SC2154:
@@ -53,9 +55,16 @@ readonly AWS_REGION="${region}"
 # AWS Secrets Manager (ARNs)
 readonly SECRET_CONSUL_LICENSE="${consul_license_secret_arn}"
 readonly SECRET_CONSUL_GOSSIP_KEY="${consul_gossip_key_secret_arn}"
-readonly SECRET_CONSUL_CA="${consul_ca_secret_arn}"
-readonly SECRET_CONSUL_SERVER_CERT="${consul_server_cert_secret_arn}"
-readonly SECRET_CONSUL_SERVER_KEY="${consul_server_key_secret_arn}"
+
+# Vault Agent
+readonly VAULT_AGENT_VERSION="${vault_agent_version}"
+readonly VAULT_ADDRESS="${vault_address}"
+readonly VAULT_AWS_AUTH_ROLE="${vault_aws_auth_role}"
+readonly VAULT_PKI_MOUNT_PATH="${vault_pki_mount_path}"
+readonly VAULT_PKI_ROLE_NAME="${vault_pki_role_name}"
+readonly VAULT_AGENT_CONFIG_DIR="/etc/vault-agent.d"
+readonly VAULT_AGENT_CA_FILE="$${VAULT_AGENT_CONFIG_DIR}/vault-ca.pem"
+readonly TLS_BUNDLE_FILE="/opt/consul/tls/cert-bundle.json"
 
 # Cluster identity
 readonly CONSUL_FQDN="${consul_fqdn}"
@@ -389,20 +398,134 @@ install_consul() {
 }
 
 # ---------------------------------------------------------------------------
-# Fetch Consul TLS materials from Secrets Manager
+# Install and run Vault Agent for Consul TLS materials
 # ---------------------------------------------------------------------------
 
-fetch_consul_tls() {
-  log_info "Fetching Consul TLS materials from Secrets Manager"
+install_vault_agent() {
+  log_info "Installing Vault Agent $${VAULT_AGENT_VERSION}"
+  tmp_dir="$(mktemp -d)"
 
+  arch="$(detect_system_architecture)"
+  download_and_verify_release "vault" "$${VAULT_AGENT_VERSION}" "$${arch}" "$${tmp_dir}"
+
+  unzip -o -q "$${tmp_dir}/vault_$${VAULT_AGENT_VERSION}_linux_$${arch}.zip" -d "$${tmp_dir}"
+  mv "$${tmp_dir}/vault" /usr/local/bin/vault
+  chmod 0755 /usr/local/bin/vault
+  rm -rf "$${tmp_dir}"
+
+  vault version
+}
+
+write_vault_agent_config() {
+  log_info "Writing Vault Agent configuration"
+
+  mkdir -p "$${VAULT_AGENT_CONFIG_DIR}"
   mkdir -p "$(dirname "$${TLS_CA_FILE}")"
 
-  fetch_secret "$${SECRET_CONSUL_CA}" >"$${TLS_CA_FILE}"
-  fetch_secret "$${SECRET_CONSUL_SERVER_CERT}" >"$${TLS_CERT_FILE}"
-  fetch_secret "$${SECRET_CONSUL_SERVER_KEY}" >"$${TLS_KEY_FILE}"
+  cat >"$${VAULT_AGENT_CA_FILE}" <<'VAULTCAEOF'
+${vault_ca_cert_pem}
+VAULTCAEOF
+  chmod 0644 "$${VAULT_AGENT_CA_FILE}"
 
-  chown consul:consul "$${TLS_CA_FILE}" "$${TLS_CERT_FILE}" "$${TLS_KEY_FILE}"
-  chmod 0640 "$${TLS_CA_FILE}" "$${TLS_CERT_FILE}" "$${TLS_KEY_FILE}"
+  cat >/usr/local/bin/split-consul-tls.sh <<'SPLITEOF'
+#!/bin/sh
+set -ef
+
+bundle="/opt/consul/tls/cert-bundle.json"
+cert="/opt/consul/tls/server.crt"
+key="/opt/consul/tls/server.key"
+ca="/opt/consul/tls/ca.crt"
+
+jq -r '.certificate' <"$${bundle}" >"$${cert}"
+jq -r '.private_key' <"$${bundle}" >"$${key}"
+jq -r '.issuing_ca'  <"$${bundle}" >"$${ca}"
+
+chown consul:consul "$${cert}" "$${key}" "$${ca}"
+chmod 0640 "$${cert}" "$${ca}"
+chmod 0600 "$${key}"
+
+systemctl reload consul 2>/dev/null || true
+SPLITEOF
+  chmod 0755 /usr/local/bin/split-consul-tls.sh
+
+  cat >"$${VAULT_AGENT_CONFIG_DIR}/agent.hcl" <<EOF
+pid_file = "/run/vault-agent.pid"
+
+vault {
+  address = "$${VAULT_ADDRESS}"
+  ca_cert = "$${VAULT_AGENT_CA_FILE}"
+}
+
+auto_auth {
+  method "aws" {
+    type = "iam"
+    config = {
+      role         = "$${VAULT_AWS_AUTH_ROLE}"
+      header_value = "$${VAULT_ADDRESS}"
+    }
+  }
+
+  sink "file" {
+    config = {
+      path = "/run/vault-agent.token"
+    }
+  }
+}
+
+cache {
+  use_auto_auth_token = true
+}
+
+template {
+  destination = "$${TLS_BUNDLE_FILE}"
+  contents    = <<-TPL
+  {{- with secret "$${VAULT_PKI_MOUNT_PATH}/issue/$${VAULT_PKI_ROLE_NAME}" "common_name=$${CONSUL_FQDN}" "alt_names=server.$${CONSUL_DATACENTER}.consul,*.$${ROUTE53_ZONE_NAME},$${CONSUL_FQDN},localhost" "ip_sans=127.0.0.1" "ttl=168h" -}}
+  {{ .Data | toJSON }}
+  {{- end -}}
+  TPL
+  command = "/usr/local/bin/split-consul-tls.sh"
+  perms   = "0640"
+}
+EOF
+  chmod 0640 "$${VAULT_AGENT_CONFIG_DIR}/agent.hcl"
+
+  cat >/etc/systemd/system/vault-agent.service <<'UNITEOF'
+[Unit]
+Description=HashiCorp Vault Agent (Consul TLS)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/vault agent -config=/etc/vault-agent.d/agent.hcl
+Restart=on-failure
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target
+UNITEOF
+
+  systemctl daemon-reload
+}
+
+start_vault_agent() {
+  log_info "Starting Vault Agent and waiting for initial template renders"
+  systemctl enable --now vault-agent
+
+  max_attempts=60
+  attempt=0
+  while [ "$${attempt}" -lt "$${max_attempts}" ]; do
+    if [ -s "$${TLS_CERT_FILE}" ] && [ -s "$${TLS_KEY_FILE}" ] && [ -s "$${TLS_CA_FILE}" ]; then
+      log_info "Vault Agent rendered initial Consul TLS materials"
+      return 0
+    fi
+    attempt=$((attempt + 1))
+    log_info "Waiting for Vault Agent template renders ($${attempt}/$${max_attempts})"
+    sleep 5
+  done
+
+  log_error "Vault Agent did not render TLS materials within timeout"
+  return 1
 }
 
 # ---------------------------------------------------------------------------
@@ -444,10 +567,6 @@ EOF
   # Static configuration files — single-quoted heredocs (no shell expansion).
   cat >"$${CONSUL_CONFIG_DIR}/acl.hcl" <<'EOF'
 ${config_server_acl_hcl}
-EOF
-
-  cat >"$${CONSUL_CONFIG_DIR}/auto-encrypt.hcl" <<'EOF'
-${config_server_auto_encrypt_hcl}
 EOF
 
   cat >"$${CONSUL_CONFIG_DIR}/performance.hcl" <<'EOF'
@@ -654,8 +773,10 @@ main() {
   prepare_system
   mount_data_volume
   install_consul
+  install_vault_agent
+  write_vault_agent_config
+  start_vault_agent
 
-  fetch_consul_tls
   write_secrets
   write_consul_config "$${private_ip}"
   write_consul_systemd_unit

@@ -30,14 +30,13 @@ locals {
   # Static configuration files
   # ---------------------------------------------------------------------------
 
-  config_consul_service          = file("${path.module}/files/consul.service")
-  config_server_acl_hcl          = file("${path.module}/files/acl.hcl")
-  config_server_auto_encrypt_hcl = file("${path.module}/files/auto-encrypt.hcl")
-  config_server_performance_hcl  = file("${path.module}/files/performance.hcl")
-  config_server_ports_hcl        = file("${path.module}/files/ports.hcl")
-  config_server_tls_hcl          = file("${path.module}/files/tls.hcl")
-  config_server_ui_hcl           = file("${path.module}/files/ui.hcl")
-  config_snapshot_agent_service  = file("${path.module}/files/consul-snapshot-agent.service")
+  config_consul_service         = file("${path.module}/files/consul.service")
+  config_server_acl_hcl         = file("${path.module}/files/acl.hcl")
+  config_server_performance_hcl = file("${path.module}/files/performance.hcl")
+  config_server_ports_hcl       = file("${path.module}/files/ports.hcl")
+  config_server_tls_hcl         = file("${path.module}/files/tls.hcl")
+  config_server_ui_hcl          = file("${path.module}/files/ui.hcl")
+  config_snapshot_agent_service = file("${path.module}/files/consul-snapshot-agent.service")
 
   # ---------------------------------------------------------------------------
   # Rendered configuration files

@@ -48,9 +48,12 @@ resource "aws_launch_template" "consul" {
     consul_license_secret_arn    = aws_secretsmanager_secret.consul_enterprise_license.arn
     consul_gossip_key_secret_arn = aws_secretsmanager_secret.consul_gossip_key.arn
 
-    consul_ca_secret_arn          = aws_secretsmanager_secret.consul_ca.arn
-    consul_server_cert_secret_arn = aws_secretsmanager_secret.consul_server_cert.arn
-    consul_server_key_secret_arn  = aws_secretsmanager_secret.consul_server_key.arn
+    vault_agent_version  = var.vault_agent_version
+    vault_address        = var.vault_address
+    vault_ca_cert_pem    = var.vault_ca_cert_pem
+    vault_aws_auth_role  = var.vault_aws_auth_role
+    vault_pki_mount_path = var.vault_pki_mount_path
+    vault_pki_role_name  = var.vault_pki_role_name
 
     consul_fqdn       = local.consul_fqdn
     consul_datacenter = var.consul_datacenter
@@ -61,17 +64,16 @@ resource "aws_launch_template" "consul" {
     consul_cluster_state_ssm_name     = aws_ssm_parameter.consul_cluster_state.name
     consul_bootstrap_token_secret_arn = aws_secretsmanager_secret.consul_bootstrap_token.arn
 
-    config_server_consul_hcl       = local.config_server_consul_hcl
-    config_server_server_hcl       = local.config_server_server_hcl
-    config_server_acl_hcl          = local.config_server_acl_hcl
-    config_server_auto_encrypt_hcl = local.config_server_auto_encrypt_hcl
-    config_server_performance_hcl  = local.config_server_performance_hcl
-    config_server_ports_hcl        = local.config_server_ports_hcl
-    config_server_tls_hcl          = local.config_server_tls_hcl
-    config_server_ui_hcl           = local.config_server_ui_hcl
-    config_snapshot_agent_json     = local.config_snapshot_agent_json
-    config_consul_service          = local.config_consul_service
-    config_snapshot_agent_service  = local.config_snapshot_agent_service
+    config_server_consul_hcl      = local.config_server_consul_hcl
+    config_server_server_hcl      = local.config_server_server_hcl
+    config_server_acl_hcl         = local.config_server_acl_hcl
+    config_server_performance_hcl = local.config_server_performance_hcl
+    config_server_ports_hcl       = local.config_server_ports_hcl
+    config_server_tls_hcl         = local.config_server_tls_hcl
+    config_server_ui_hcl          = local.config_server_ui_hcl
+    config_snapshot_agent_json    = local.config_snapshot_agent_json
+    config_consul_service         = local.config_consul_service
+    config_snapshot_agent_service = local.config_snapshot_agent_service
   }))
 
   block_device_mappings {

@@ -1,61 +1,3 @@
-resource "tls_private_key" "consul_ca" {
-  algorithm   = "ECDSA"
-  ecdsa_curve = "P384"
-}
-
-resource "tls_self_signed_cert" "consul_ca" {
-  private_key_pem = tls_private_key.consul_ca.private_key_pem
-
-  subject {
-    common_name = "Example Consul CA"
-  }
-
-  validity_period_hours = 87600
-  is_ca_certificate     = true
-
-  allowed_uses = [
-    "cert_signing",
-    "crl_signing",
-  ]
-}
-
-resource "tls_private_key" "consul_server" {
-  algorithm   = "ECDSA"
-  ecdsa_curve = "P384"
-}
-
-resource "tls_cert_request" "consul_server" {
-  private_key_pem = tls_private_key.consul_server.private_key_pem
-
-  subject {
-    common_name = "consul.example.com"
-  }
-
-  dns_names = [
-    "server.dc1.consul",
-    "*.example.com",
-    "consul.example.com",
-    "localhost",
-  ]
-
-  ip_addresses = ["127.0.0.1"]
-}
-
-resource "tls_locally_signed_cert" "consul_server" {
-  cert_request_pem   = tls_cert_request.consul_server.cert_request_pem
-  ca_private_key_pem = tls_private_key.consul_ca.private_key_pem
-  ca_cert_pem        = tls_self_signed_cert.consul_ca.cert_pem
-
-  validity_period_hours = 8760
-
-  allowed_uses = [
-    "digital_signature",
-    "key_encipherment",
-    "server_auth",
-    "client_auth",
-  ]
-}
-
 resource "random_id" "gossip_key" {
   byte_length = 32
 }
@@ -67,10 +9,12 @@ module "consul" {
   consul_enterprise_license = var.consul_enterprise_license
   ec2_key_pair_name         = "example"
 
-  consul_ca_cert_pem     = tls_self_signed_cert.consul_ca.cert_pem
-  consul_server_cert_pem = tls_locally_signed_cert.consul_server.cert_pem
-  consul_server_key_pem  = tls_private_key.consul_server.private_key_pem
-  consul_gossip_key      = random_id.gossip_key.b64_std
+  consul_gossip_key = random_id.gossip_key.b64_std
+
+  vault_address       = "https://vault.example.com:8200"
+  vault_ca_cert_pem   = var.vault_ca_cert_pem
+  vault_aws_auth_role = "consul-server"
+  vault_agent_version = "1.18.4"
 
   ec2_ami = {
     id   = "ami-0example"
