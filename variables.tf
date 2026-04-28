@@ -24,6 +24,30 @@ variable "consul_enterprise_license" {
   sensitive   = true
 }
 
+variable "consul_ca_cert_pem" {
+  type        = string
+  description = "PEM-encoded CA certificate trusted by the Consul cluster."
+  sensitive   = true
+}
+
+variable "consul_server_cert_pem" {
+  type        = string
+  description = "PEM-encoded TLS certificate for Consul server nodes."
+  sensitive   = true
+}
+
+variable "consul_server_key_pem" {
+  type        = string
+  description = "PEM-encoded TLS private key for Consul server nodes."
+  sensitive   = true
+}
+
+variable "consul_gossip_key" {
+  type        = string
+  description = "Base64-encoded 32-byte gossip encryption key for the Consul cluster."
+  sensitive   = true
+}
+
 variable "ec2_key_pair_name" {
   type        = string
   description = "Name of an existing EC2 key pair for SSH access."

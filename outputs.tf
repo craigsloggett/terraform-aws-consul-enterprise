@@ -38,12 +38,6 @@ output "ec2_ami_name" {
   value       = var.ec2_ami.name
 }
 
-output "consul_ca" {
-  description = "Self-signed CA for trusting the Consul TLS chain."
-  value       = tls_self_signed_cert.consul_ca.cert_pem
-  sensitive   = true
-}
-
 output "security_group" {
   description = "Consul cluster security group."
   value       = aws_security_group.consul

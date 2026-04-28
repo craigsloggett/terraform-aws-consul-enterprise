@@ -6,12 +6,79 @@ A Terraform module for deploying HashiCorp Consul Enterprise on AWS.
 
 ### main.tf
 ```hcl
+resource "tls_private_key" "consul_ca" {
+  algorithm   = "ECDSA"
+  ecdsa_curve = "P384"
+}
+
+resource "tls_self_signed_cert" "consul_ca" {
+  private_key_pem = tls_private_key.consul_ca.private_key_pem
+
+  subject {
+    common_name = "Example Consul CA"
+  }
+
+  validity_period_hours = 87600
+  is_ca_certificate     = true
+
+  allowed_uses = [
+    "cert_signing",
+    "crl_signing",
+  ]
+}
+
+resource "tls_private_key" "consul_server" {
+  algorithm   = "ECDSA"
+  ecdsa_curve = "P384"
+}
+
+resource "tls_cert_request" "consul_server" {
+  private_key_pem = tls_private_key.consul_server.private_key_pem
+
+  subject {
+    common_name = "consul.example.com"
+  }
+
+  dns_names = [
+    "server.dc1.consul",
+    "*.example.com",
+    "consul.example.com",
+    "localhost",
+  ]
+
+  ip_addresses = ["127.0.0.1"]
+}
+
+resource "tls_locally_signed_cert" "consul_server" {
+  cert_request_pem   = tls_cert_request.consul_server.cert_request_pem
+  ca_private_key_pem = tls_private_key.consul_ca.private_key_pem
+  ca_cert_pem        = tls_self_signed_cert.consul_ca.cert_pem
+
+  validity_period_hours = 8760
+
+  allowed_uses = [
+    "digital_signature",
+    "key_encipherment",
+    "server_auth",
+    "client_auth",
+  ]
+}
+
+resource "random_id" "gossip_key" {
+  byte_length = 32
+}
+
 module "consul" {
   source = "../.."
 
   project_name              = "consul"
   consul_enterprise_license = var.consul_enterprise_license
   ec2_key_pair_name         = "example"
+
+  consul_ca_cert_pem     = tls_self_signed_cert.consul_ca.cert_pem
+  consul_server_cert_pem = tls_locally_signed_cert.consul_server.cert_pem
+  consul_server_key_pem  = tls_private_key.consul_server.private_key_pem
+  consul_gossip_key      = random_id.gossip_key.b64_std
 
   ec2_ami = {
     id   = "ami-0example"
@@ -31,16 +98,12 @@ module "consul" {
 | ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | ~> 1.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 6.0 |
-| <a name="requirement_random"></a> [random](#requirement\_random) | ~> 3.0 |
-| <a name="requirement_tls"></a> [tls](#requirement\_tls) | ~> 4.0 |
 
 ## Providers
 
 | Name | Version |
 | ---- | ------- |
 | <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 6.0 |
-| <a name="provider_random"></a> [random](#provider\_random) | ~> 3.0 |
-| <a name="provider_tls"></a> [tls](#provider\_tls) | ~> 4.0 |
 
 ## Inputs
 
@@ -50,11 +113,15 @@ module "consul" {
 | <a name="input_bastion_instance_type"></a> [bastion\_instance\_type](#input\_bastion\_instance\_type) | EC2 instance type for the bastion host. | `string` | `"t3.micro"` | no |
 | <a name="input_common_tags"></a> [common\_tags](#input\_common\_tags) | Tags to apply to all resources. | `map(string)` | `{}` | no |
 | <a name="input_consul_api_allowed_cidrs"></a> [consul\_api\_allowed\_cidrs](#input\_consul\_api\_allowed\_cidrs) | CIDR blocks allowed to reach the Consul API (port 8501) from outside the VPC. Only effective when nlb\_internal is false. | `list(string)` | `[]` | no |
+| <a name="input_consul_ca_cert_pem"></a> [consul\_ca\_cert\_pem](#input\_consul\_ca\_cert\_pem) | PEM-encoded CA certificate trusted by the Consul cluster. | `string` | n/a | yes |
 | <a name="input_consul_datacenter"></a> [consul\_datacenter](#input\_consul\_datacenter) | Consul datacenter name. | `string` | `"dc1"` | no |
 | <a name="input_consul_ebs_volume_size"></a> [consul\_ebs\_volume\_size](#input\_consul\_ebs\_volume\_size) | Size in GiB of the EBS volume for Consul Raft storage. | `number` | `100` | no |
 | <a name="input_consul_enterprise_license"></a> [consul\_enterprise\_license](#input\_consul\_enterprise\_license) | Consul Enterprise license string. | `string` | n/a | yes |
+| <a name="input_consul_gossip_key"></a> [consul\_gossip\_key](#input\_consul\_gossip\_key) | Base64-encoded 32-byte gossip encryption key for the Consul cluster. | `string` | n/a | yes |
 | <a name="input_consul_node_count"></a> [consul\_node\_count](#input\_consul\_node\_count) | Number of Consul server nodes in the cluster. Must be 3 or 5 for Raft quorum. | `number` | `3` | no |
+| <a name="input_consul_server_cert_pem"></a> [consul\_server\_cert\_pem](#input\_consul\_server\_cert\_pem) | PEM-encoded TLS certificate for Consul server nodes. | `string` | n/a | yes |
 | <a name="input_consul_server_instance_type"></a> [consul\_server\_instance\_type](#input\_consul\_server\_instance\_type) | EC2 instance type for Consul server nodes. | `string` | `"m5.large"` | no |
+| <a name="input_consul_server_key_pem"></a> [consul\_server\_key\_pem](#input\_consul\_server\_key\_pem) | PEM-encoded TLS private key for Consul server nodes. | `string` | n/a | yes |
 | <a name="input_consul_snapshot_interval"></a> [consul\_snapshot\_interval](#input\_consul\_snapshot\_interval) | Interval between automated Raft snapshots (e.g., 1h, 30m, 24h). | `string` | `"1h"` | no |
 | <a name="input_consul_snapshot_retain"></a> [consul\_snapshot\_retain](#input\_consul\_snapshot\_retain) | Number of automated Raft snapshots to retain in S3. | `number` | `72` | no |
 | <a name="input_consul_subdomain"></a> [consul\_subdomain](#input\_consul\_subdomain) | Subdomain for the Consul DNS record. | `string` | `"consul"` | no |
@@ -128,12 +195,6 @@ module "consul" {
 | [aws_vpc_security_group_ingress_rule.consul_wan_serf_tcp](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
 | [aws_vpc_security_group_ingress_rule.consul_wan_serf_udp](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
 | [aws_vpc_security_group_ingress_rule.vpc_endpoints_https](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/vpc_security_group_ingress_rule) | resource |
-| [random_id.gossip_key](https://registry.terraform.io/providers/hashicorp/random/latest/docs/resources/id) | resource |
-| [tls_cert_request.consul_server](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/resources/cert_request) | resource |
-| [tls_locally_signed_cert.consul_server](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/resources/locally_signed_cert) | resource |
-| [tls_private_key.consul_ca](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/resources/private_key) | resource |
-| [tls_private_key.consul_server](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/resources/private_key) | resource |
-| [tls_self_signed_cert.consul_ca](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/resources/self_signed_cert) | resource |
 | [aws_availability_zones.available](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/availability_zones) | data source |
 | [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
 | [aws_iam_policy_document.consul_assume_role](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
@@ -154,7 +215,6 @@ module "consul" {
 | <a name="output_bootstrap_token_secret"></a> [bootstrap\_token\_secret](#output\_bootstrap\_token\_secret) | Secrets Manager secret containing the Consul ACL bootstrap token. |
 | <a name="output_consul_asg_name"></a> [consul\_asg\_name](#output\_consul\_asg\_name) | Name of the Consul Auto Scaling Group. |
 | <a name="output_consul_auto_join_ec2_tag"></a> [consul\_auto\_join\_ec2\_tag](#output\_consul\_auto\_join\_ec2\_tag) | EC2 tag key and value used for Consul auto-join. |
-| <a name="output_consul_ca"></a> [consul\_ca](#output\_consul\_ca) | Self-signed CA for trusting the Consul TLS chain. |
 | <a name="output_consul_snapshots_bucket"></a> [consul\_snapshots\_bucket](#output\_consul\_snapshots\_bucket) | S3 bucket for Consul snapshots. |
 | <a name="output_consul_target_group_arn"></a> [consul\_target\_group\_arn](#output\_consul\_target\_group\_arn) | ARN of the Consul NLB target group. |
 | <a name="output_consul_url"></a> [consul\_url](#output\_consul\_url) | URL of the Consul cluster. |
