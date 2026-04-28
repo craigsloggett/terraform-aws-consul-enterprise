@@ -1,4 +1,8 @@
-data "aws_iam_policy_document" "consul_assume_role" {
+locals {
+  iam_project_name = replace(title(replace(var.project_name, "-", " ")), " ", "")
+}
+
+data "aws_iam_policy_document" "consul_server_instance_assume_role" {
   statement {
     effect  = "Allow"
     actions = ["sts:AssumeRole"]
@@ -10,23 +14,23 @@ data "aws_iam_policy_document" "consul_assume_role" {
   }
 }
 
-resource "aws_iam_role" "consul" {
-  name               = "${var.project_name}-consul-server"
-  assume_role_policy = data.aws_iam_policy_document.consul_assume_role.json
+resource "aws_iam_role" "consul_server_instance" {
+  name               = "ConsulServer${local.iam_project_name}InstanceRole"
+  assume_role_policy = data.aws_iam_policy_document.consul_server_instance_assume_role.json
 
-  tags = merge(var.common_tags, { Name = "${var.project_name}-consul-server" })
+  tags = merge(var.common_tags, { Name = "ConsulServer${local.iam_project_name}InstanceRole" })
 }
 
-resource "aws_iam_instance_profile" "consul" {
-  name_prefix = "${var.project_name}-consul-"
-  role        = aws_iam_role.consul.name
+resource "aws_iam_instance_profile" "consul_server_instance" {
+  name = "ConsulServer${local.iam_project_name}InstanceProfile"
+  role = aws_iam_role.consul_server_instance.name
 
-  tags = merge(var.common_tags, { Name = "${var.project_name}-consul" })
+  tags = merge(var.common_tags, { Name = "ConsulServer${local.iam_project_name}InstanceProfile" })
 }
 
-# Secrets Manager (license, gossip key)
+# Secrets Manager (license, gossip key, TLS materials)
 
-data "aws_iam_policy_document" "consul_secrets_manager" {
+data "aws_iam_policy_document" "consul_server_secrets_manager_read" {
   statement {
     effect  = "Allow"
     actions = ["secretsmanager:GetSecretValue"]
@@ -40,15 +44,15 @@ data "aws_iam_policy_document" "consul_secrets_manager" {
   }
 }
 
-resource "aws_iam_role_policy" "consul_secrets_manager" {
-  name_prefix = "${var.project_name}-secrets-"
-  role        = aws_iam_role.consul.id
-  policy      = data.aws_iam_policy_document.consul_secrets_manager.json
+resource "aws_iam_role_policy" "consul_server_secrets_manager_read" {
+  name   = "ConsulServer${local.iam_project_name}SecretsManagerReadPolicy"
+  role   = aws_iam_role.consul_server_instance.id
+  policy = data.aws_iam_policy_document.consul_server_secrets_manager_read.json
 }
 
 # SSM Parameter Store (cluster coordination)
 
-data "aws_iam_policy_document" "consul_cluster_state" {
+data "aws_iam_policy_document" "consul_server_ssm_read_write" {
   statement {
     effect = "Allow"
     actions = [
@@ -59,15 +63,15 @@ data "aws_iam_policy_document" "consul_cluster_state" {
   }
 }
 
-resource "aws_iam_role_policy" "consul_cluster_state" {
-  name_prefix = "${var.project_name}-cluster-state-"
-  role        = aws_iam_role.consul.id
-  policy      = data.aws_iam_policy_document.consul_cluster_state.json
+resource "aws_iam_role_policy" "consul_server_ssm_read_write" {
+  name   = "ConsulServer${local.iam_project_name}SSMReadWritePolicy"
+  role   = aws_iam_role.consul_server_instance.id
+  policy = data.aws_iam_policy_document.consul_server_ssm_read_write.json
 }
 
 # Secrets Manager (bootstrap token — read/write during initialization)
 
-data "aws_iam_policy_document" "consul_bootstrap_token" {
+data "aws_iam_policy_document" "consul_server_secrets_manager_read_write" {
   statement {
     effect = "Allow"
     actions = [
@@ -78,15 +82,15 @@ data "aws_iam_policy_document" "consul_bootstrap_token" {
   }
 }
 
-resource "aws_iam_role_policy" "consul_bootstrap_token" {
-  name_prefix = "${var.project_name}-bootstrap-token-"
-  role        = aws_iam_role.consul.id
-  policy      = data.aws_iam_policy_document.consul_bootstrap_token.json
+resource "aws_iam_role_policy" "consul_server_secrets_manager_read_write" {
+  name   = "ConsulServer${local.iam_project_name}SecretsManagerReadWritePolicy"
+  role   = aws_iam_role.consul_server_instance.id
+  policy = data.aws_iam_policy_document.consul_server_secrets_manager_read_write.json
 }
 
 # S3 (snapshots)
 
-data "aws_iam_policy_document" "consul_s3" {
+data "aws_iam_policy_document" "consul_server_s3_read_write" {
   statement {
     effect = "Allow"
     actions = [
@@ -102,15 +106,15 @@ data "aws_iam_policy_document" "consul_s3" {
   }
 }
 
-resource "aws_iam_role_policy" "consul_s3" {
-  name_prefix = "${var.project_name}-s3-"
-  role        = aws_iam_role.consul.id
-  policy      = data.aws_iam_policy_document.consul_s3.json
+resource "aws_iam_role_policy" "consul_server_s3_read_write" {
+  name   = "ConsulServer${local.iam_project_name}S3ReadWritePolicy"
+  role   = aws_iam_role.consul_server_instance.id
+  policy = data.aws_iam_policy_document.consul_server_s3_read_write.json
 }
 
 # EC2 (auto-join)
 
-data "aws_iam_policy_document" "consul_ec2_describe" {
+data "aws_iam_policy_document" "consul_server_ec2_read" {
   statement {
     effect    = "Allow"
     actions   = ["ec2:DescribeInstances"]
@@ -118,8 +122,8 @@ data "aws_iam_policy_document" "consul_ec2_describe" {
   }
 }
 
-resource "aws_iam_role_policy" "consul_ec2_describe" {
-  name_prefix = "${var.project_name}-ec2-"
-  role        = aws_iam_role.consul.id
-  policy      = data.aws_iam_policy_document.consul_ec2_describe.json
+resource "aws_iam_role_policy" "consul_server_ec2_read" {
+  name   = "ConsulServer${local.iam_project_name}EC2ReadPolicy"
+  role   = aws_iam_role.consul_server_instance.id
+  policy = data.aws_iam_policy_document.consul_server_ec2_read.json
 }

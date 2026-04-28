@@ -26,7 +26,7 @@ resource "aws_launch_template" "consul" {
   key_name      = var.ec2_key_pair_name
 
   iam_instance_profile {
-    name = aws_iam_instance_profile.consul.name
+    name = aws_iam_instance_profile.consul_server_instance.name
   }
 
   network_interfaces {
@@ -164,8 +164,8 @@ resource "aws_autoscaling_group" "consul" {
   }
 
   depends_on = [
-    aws_iam_role_policy.consul_secrets_manager,
-    aws_iam_role_policy.consul_cluster_state,
-    aws_iam_role_policy.consul_bootstrap_token,
+    aws_iam_role_policy.consul_server_secrets_manager_read,
+    aws_iam_role_policy.consul_server_ssm_read_write,
+    aws_iam_role_policy.consul_server_secrets_manager_read_write,
   ]
 }
