@@ -53,6 +53,47 @@ variable "ec2_key_pair_name" {
   description = "Name of an existing EC2 key pair for SSH access."
 }
 
+# Vault Integration
+
+variable "vault_address" {
+  type        = string
+  description = "Address of the Vault cluster reachable from Consul nodes (e.g. https://vault.example.com:8200)."
+}
+
+variable "vault_ca_cert_pem" {
+  type        = string
+  description = "PEM CA bundle used by Vault Agent to verify the Vault TLS endpoint."
+  sensitive   = true
+}
+
+variable "vault_aws_auth_role" {
+  type        = string
+  description = "Name of the Vault AWS IAM auth role bound to the Consul server instance role."
+}
+
+variable "vault_pki_mount_path" {
+  type        = string
+  description = "Path of the Consul-specific Vault PKI mount that issues server certificates."
+  default     = "pki_consul_int"
+}
+
+variable "vault_pki_role_name" {
+  type        = string
+  description = "Name of the Vault PKI role used to issue Consul server certificates."
+  default     = "consul-server"
+}
+
+variable "vault_agent_version" {
+  type        = string
+  description = "Version of the Vault binary installed on each node and run as Vault Agent."
+}
+
+variable "iam_role_name" {
+  type        = string
+  description = "Fixed name for the Consul server IAM role. When null (default), a name_prefix derived from project_name is used. Set this to coordinate with a Vault AWS auth role binding."
+  default     = null
+}
+
 # General
 
 variable "common_tags" {

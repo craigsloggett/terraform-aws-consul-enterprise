@@ -11,7 +11,8 @@ data "aws_iam_policy_document" "consul_assume_role" {
 }
 
 resource "aws_iam_role" "consul" {
-  name_prefix        = "${var.project_name}-consul-"
+  name               = var.iam_role_name
+  name_prefix        = var.iam_role_name == null ? "${var.project_name}-consul-" : null
   assume_role_policy = data.aws_iam_policy_document.consul_assume_role.json
 
   tags = merge(var.common_tags, { Name = "${var.project_name}-consul" })
