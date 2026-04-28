@@ -11,10 +11,10 @@ data "aws_iam_policy_document" "consul_assume_role" {
 }
 
 resource "aws_iam_role" "consul" {
-  name_prefix        = "${var.project_name}-consul-"
+  name               = "${var.project_name}-consul-server"
   assume_role_policy = data.aws_iam_policy_document.consul_assume_role.json
 
-  tags = merge(var.common_tags, { Name = "${var.project_name}-consul" })
+  tags = merge(var.common_tags, { Name = "${var.project_name}-consul-server" })
 }
 
 resource "aws_iam_instance_profile" "consul" {
