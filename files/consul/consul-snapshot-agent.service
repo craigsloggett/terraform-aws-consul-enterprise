@@ -1,0 +1,30 @@
+[Unit]
+Description=HashiCorp Consul Snapshot Agent
+Documentation=https://developer.hashicorp.com/consul/commands/snapshot/agent
+Requires=consul.service
+After=consul.service
+ConditionFileNotEmpty=/etc/consul-snapshot.d/snapshot.json
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+User=consul
+Group=consul
+EnvironmentFile=/etc/consul-snapshot.d/snapshot-agent.env
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+SecureBits=keep-caps
+CapabilityBoundingSet=CAP_SYSLOG
+NoNewPrivileges=yes
+ExecStart=/usr/local/bin/consul snapshot agent -config-file=/etc/consul-snapshot.d/snapshot.json
+KillMode=process
+KillSignal=SIGINT
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
