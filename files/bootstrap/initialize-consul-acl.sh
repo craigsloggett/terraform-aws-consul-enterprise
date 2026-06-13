@@ -1,11 +1,11 @@
 #!/bin/sh
 # initialize-consul-acl.sh
 #
-# Bootstraps the Consul ACL system on the elected bootstrap node. Runs
-# consul acl bootstrap, publishes the management token to Secrets Manager,
-# creates the server agent and snapshot agent policies and tokens, and marks
-# cluster_state=Ready in SSM. Followers no-op. Runs after the local
-# consul.service is up and listening.
+# Bootstraps the Consul ACL system on the elected bootstrap node. Publishes the
+# API CA chain to SSM, runs consul acl bootstrap, publishes the management token
+# to Secrets Manager, creates the server agent and snapshot agent policies and
+# tokens, and marks cluster_state=Ready in SSM. Followers no-op. Runs after the
+# local consul.service is up and listening.
 
 set -euf
 
@@ -120,12 +120,29 @@ publish_cluster_ready() (
   log_info "Cluster initialization complete"
 )
 
+# publish_ca_chain stores the Vault Agent-issued CA chain in SSM so callers
+# outside the VPC (the deploy repo's node-replacement test) can trust the Consul
+# API. Intelligent-Tiering absorbs a chain larger than the Standard 4 KB limit.
+publish_ca_chain() (
+  log_info "Publishing the Consul API CA chain to SSM"
+
+  aws ssm put-parameter \
+    --name "${BOOTSTRAP_CONSUL_PKI_CA_CHAIN_SSM_PARAMETER_NAME}" \
+    --value "file://${CONSUL_TLS_CA_FILE}" \
+    --type String \
+    --tier Intelligent-Tiering \
+    --overwrite \
+    >/dev/null
+)
+
 main() {
   bootstrap_instance_id="$(fetch_parameter "${BOOTSTRAP_INSTANCE_ID_SSM_PARAMETER_NAME}")"
 
   if [ "${INSTANCE_ID}" != "${bootstrap_instance_id}" ]; then
     return 0
   fi
+
+  publish_ca_chain
 
   if consul_cluster_ready; then
     log_info "Consul ACL system already bootstrapped, skipping"

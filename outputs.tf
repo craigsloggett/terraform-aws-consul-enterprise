@@ -62,3 +62,8 @@ output "bootstrap_instance_id_ssm_parameter_name" {
   description = "SSM Parameter for the elected bootstrap node EC2 instance ID."
   value       = aws_ssm_parameter.bootstrap_instance_id.name
 }
+
+output "bootstrap_consul_pki_ca_chain_ssm_parameter_name" {
+  description = "SSM Parameter holding the PEM CA chain that signs the Consul server certificates."
+  value       = aws_ssm_parameter.bootstrap_consul_pki_ca_chain.name
+}

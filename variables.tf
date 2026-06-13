@@ -607,6 +607,7 @@ variable "bootstrap" {
     ssm_parameter = optional(object({
       consul_cluster_state_name = optional(string, "/consul-enterprise/bootstrap/cluster/state")
       instance_id_name          = optional(string, "/consul-enterprise/bootstrap/instance/id")
+      pki_ca_chain_name         = optional(string, "/consul-enterprise/bootstrap/pki/ca-chain")
     }), {})
   })
 

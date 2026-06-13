@@ -63,6 +63,7 @@ resource "aws_launch_template" "consul_enterprise" {
 
       # Bootstrap Coordination
       bootstrap_consul_cluster_state_ssm_parameter_name = aws_ssm_parameter.bootstrap_consul_cluster_state.name
+      bootstrap_consul_pki_ca_chain_ssm_parameter_name  = aws_ssm_parameter.bootstrap_consul_pki_ca_chain.name
       bootstrap_instance_id_ssm_parameter_name          = aws_ssm_parameter.bootstrap_instance_id.name
 
       # Bootstrap Secrets

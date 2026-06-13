@@ -125,6 +125,7 @@ data "aws_iam_policy_document" "ssm_read_write" {
 
     resources = [
       aws_ssm_parameter.bootstrap_consul_cluster_state.arn,
+      aws_ssm_parameter.bootstrap_consul_pki_ca_chain.arn,
       aws_ssm_parameter.bootstrap_instance_id.arn,
     ]
   }
