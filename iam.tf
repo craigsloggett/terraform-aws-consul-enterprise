@@ -1,5 +1,6 @@
-data "aws_iam_policy_document" "consul_assume_role" {
+data "aws_iam_policy_document" "assume_role" {
   statement {
+    sid     = "EC2InstanceAssumeRole"
     effect  = "Allow"
     actions = ["sts:AssumeRole"]
 
@@ -10,116 +11,128 @@ data "aws_iam_policy_document" "consul_assume_role" {
   }
 }
 
-resource "aws_iam_role" "consul" {
-  name_prefix        = "${var.project_name}-consul-"
-  assume_role_policy = data.aws_iam_policy_document.consul_assume_role.json
-
-  tags = merge(var.common_tags, { Name = "${var.project_name}-consul" })
+resource "aws_iam_role" "consul_enterprise" {
+  name               = var.iam_role.name
+  path               = var.iam_role.path
+  assume_role_policy = data.aws_iam_policy_document.assume_role.json
 }
 
-resource "aws_iam_instance_profile" "consul" {
-  name_prefix = "${var.project_name}-consul-"
-  role        = aws_iam_role.consul.name
-
-  tags = merge(var.common_tags, { Name = "${var.project_name}-consul" })
+resource "aws_iam_instance_profile" "consul_enterprise" {
+  name = var.iam_role.instance_profile.name
+  path = var.iam_role.instance_profile.path
+  role = aws_iam_role.consul_enterprise.name
 }
 
-# Secrets Manager (license, gossip key)
-
-data "aws_iam_policy_document" "consul_secrets_manager" {
+data "aws_iam_policy_document" "secrets_manager_read" {
   statement {
-    effect  = "Allow"
-    actions = ["secretsmanager:GetSecretValue"]
-    resources = [
-      aws_secretsmanager_secret.consul_enterprise_license.arn,
-      aws_secretsmanager_secret.consul_gossip_key.arn,
-      aws_secretsmanager_secret.consul_ca.arn,
-      aws_secretsmanager_secret.consul_server_cert.arn,
-      aws_secretsmanager_secret.consul_server_key.arn,
-    ]
+    sid       = "BootstrapMaterialRead"
+    effect    = "Allow"
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = [aws_secretsmanager_secret.license.arn]
   }
 }
 
-resource "aws_iam_role_policy" "consul_secrets_manager" {
-  name_prefix = "${var.project_name}-secrets-"
-  role        = aws_iam_role.consul.id
-  policy      = data.aws_iam_policy_document.consul_secrets_manager.json
+resource "aws_iam_role_policy" "secrets_manager_read" {
+  name   = var.iam_role.inline_policy_names.secrets_manager_read
+  role   = aws_iam_role.consul_enterprise.id
+  policy = data.aws_iam_policy_document.secrets_manager_read.json
 }
 
-# SSM Parameter Store (cluster coordination)
-
-data "aws_iam_policy_document" "consul_cluster_state" {
+data "aws_iam_policy_document" "secrets_manager_read_write" {
   statement {
+    sid    = "ClusterInitOutputPersistence"
     effect = "Allow"
-    actions = [
-      "ssm:GetParameter",
-      "ssm:PutParameter",
-    ]
-    resources = [aws_ssm_parameter.consul_cluster_state.arn]
-  }
-}
 
-resource "aws_iam_role_policy" "consul_cluster_state" {
-  name_prefix = "${var.project_name}-cluster-state-"
-  role        = aws_iam_role.consul.id
-  policy      = data.aws_iam_policy_document.consul_cluster_state.json
-}
-
-# Secrets Manager (bootstrap token — read/write during initialization)
-
-data "aws_iam_policy_document" "consul_bootstrap_token" {
-  statement {
-    effect = "Allow"
     actions = [
       "secretsmanager:GetSecretValue",
       "secretsmanager:PutSecretValue",
     ]
-    resources = [aws_secretsmanager_secret.consul_bootstrap_token.arn]
+
+    resources = [
+      aws_secretsmanager_secret.acl_management_token.arn,
+      aws_secretsmanager_secret.acl_agent_token.arn,
+      aws_secretsmanager_secret.acl_snapshot_agent_token.arn,
+    ]
   }
 }
 
-resource "aws_iam_role_policy" "consul_bootstrap_token" {
-  name_prefix = "${var.project_name}-bootstrap-token-"
-  role        = aws_iam_role.consul.id
-  policy      = data.aws_iam_policy_document.consul_bootstrap_token.json
+resource "aws_iam_role_policy" "secrets_manager_read_write" {
+  name   = var.iam_role.inline_policy_names.secrets_manager_read_write
+  role   = aws_iam_role.consul_enterprise.id
+  policy = data.aws_iam_policy_document.secrets_manager_read_write.json
 }
 
-# S3 (snapshots)
-
-data "aws_iam_policy_document" "consul_s3" {
+data "aws_iam_policy_document" "s3_object_read_write" {
   statement {
+    sid    = "RaftSnapshotObjectManagement"
     effect = "Allow"
+
     actions = [
-      "s3:PutObject",
       "s3:GetObject",
-      "s3:ListBucket",
+      "s3:PutObject",
       "s3:DeleteObject",
     ]
-    resources = [
-      aws_s3_bucket.consul_snapshots.arn,
-      "${aws_s3_bucket.consul_snapshots.arn}/*",
-    ]
+
+    resources = ["${aws_s3_bucket.snapshots.arn}/*"]
   }
 }
 
-resource "aws_iam_role_policy" "consul_s3" {
-  name_prefix = "${var.project_name}-s3-"
-  role        = aws_iam_role.consul.id
-  policy      = data.aws_iam_policy_document.consul_s3.json
+resource "aws_iam_role_policy" "s3_object_read_write" {
+  name   = var.iam_role.inline_policy_names.s3_object_read_write
+  role   = aws_iam_role.consul_enterprise.id
+  policy = data.aws_iam_policy_document.s3_object_read_write.json
 }
 
-# EC2 (auto-join)
-
-data "aws_iam_policy_document" "consul_ec2_describe" {
+data "aws_iam_policy_document" "s3_bucket_list" {
   statement {
+    sid       = "RaftSnapshotEnumeration"
+    effect    = "Allow"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.snapshots.arn]
+  }
+}
+
+resource "aws_iam_role_policy" "s3_bucket_list" {
+  name   = var.iam_role.inline_policy_names.s3_bucket_list
+  role   = aws_iam_role.consul_enterprise.id
+  policy = data.aws_iam_policy_document.s3_bucket_list.json
+}
+
+data "aws_iam_policy_document" "ec2_describe" {
+  statement {
+    sid       = "RetryJoinDiscovery"
     effect    = "Allow"
     actions   = ["ec2:DescribeInstances"]
     resources = ["*"]
   }
 }
 
-resource "aws_iam_role_policy" "consul_ec2_describe" {
-  name_prefix = "${var.project_name}-ec2-"
-  role        = aws_iam_role.consul.id
-  policy      = data.aws_iam_policy_document.consul_ec2_describe.json
+resource "aws_iam_role_policy" "ec2_describe" {
+  name   = var.iam_role.inline_policy_names.ec2_describe
+  role   = aws_iam_role.consul_enterprise.id
+  policy = data.aws_iam_policy_document.ec2_describe.json
+}
+
+data "aws_iam_policy_document" "ssm_read_write" {
+  statement {
+    sid    = "ClusterCoordinationState"
+    effect = "Allow"
+
+    actions = [
+      "ssm:GetParameter",
+      "ssm:PutParameter",
+    ]
+
+    resources = [
+      aws_ssm_parameter.bootstrap_consul_cluster_state.arn,
+      aws_ssm_parameter.bootstrap_consul_pki_ca_chain.arn,
+      aws_ssm_parameter.bootstrap_instance_id.arn,
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "ssm_read_write" {
+  name   = var.iam_role.inline_policy_names.ssm_read_write
+  role   = aws_iam_role.consul_enterprise.id
+  policy = data.aws_iam_policy_document.ssm_read_write.json
 }

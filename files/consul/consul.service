@@ -1,0 +1,30 @@
+[Unit]
+Description=HashiCorp Consul - A Service Networking Solution
+Documentation=https://developer.hashicorp.com/consul/docs
+Requires=network-online.target vault-agent.service
+After=network-online.target vault-agent.service
+ConditionFileNotEmpty=/etc/consul.d/consul.hcl
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+User=consul
+Group=consul
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+SecureBits=keep-caps
+CapabilityBoundingSet=CAP_SYSLOG
+NoNewPrivileges=yes
+ExecStart=/usr/local/bin/consul agent -config-dir=/etc/consul.d
+ExecReload=/bin/kill --signal HUP $MAINPID
+KillMode=process
+KillSignal=SIGTERM
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

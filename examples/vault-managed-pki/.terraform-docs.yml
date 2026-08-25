@@ -7,8 +7,15 @@ content: |-
   ## Usage
 
   ### main.tf
+
   ```hcl
-  {{ include "examples/vault-managed-pki/main.tf" }}
+  {{ include "main.tf" }}
+  ```
+
+  ### vault.tf
+
+  ```hcl
+  {{ include "vault.tf" }}
   ```
 
   {{ .Requirements }}

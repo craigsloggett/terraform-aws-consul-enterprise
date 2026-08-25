@@ -1,6 +1,7 @@
 extends: relaxed
 
-ignore-from-file: .gitignore
+ignore-from-file:
+  - .gitignore
 
 rules:
   comments:
