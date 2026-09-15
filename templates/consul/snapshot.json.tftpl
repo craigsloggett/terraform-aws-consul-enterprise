@@ -1,0 +1,19 @@
+{
+  "snapshot_agent": {
+    "http_addr": "https://127.0.0.1:8501",
+    "ca_file": "/opt/consul/tls/ca.pem",
+    "snapshot": {
+      "interval": "${interval}",
+      "retain": ${retain}
+    },
+    "backup_destinations": {
+      "aws_storage": [
+        {
+          "s3_region": "${aws_s3_region}",
+          "s3_bucket": "${aws_s3_bucket}",
+          "s3_key_prefix": "${s3_key_prefix}"
+        }
+      ]
+    }
+  }
+}

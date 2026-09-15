@@ -1,0 +1,3 @@
+{{- with secret "${kv_mount_path}/data/${gossip_secret_path}" -}}
+encrypt = "{{ index .Data.data "${gossip_key_field}" }}"
+{{- end -}}

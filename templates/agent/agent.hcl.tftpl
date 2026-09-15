@@ -1,0 +1,37 @@
+pid_file = "/run/vault-agent/agent.pid"
+
+vault {
+  address = "${vault_address}"
+  ca_cert = "/etc/vault.d/vault-ca.pem"
+%{ if vault_tls_server_name != "" ~}
+  tls_server_name = "${vault_tls_server_name}"
+%{ endif ~}
+}
+
+auto_auth {
+  method "aws" {
+    mount_path = "auth/${auth_aws_mount_path}"
+    config = {
+      type = "iam"
+      role = "${auth_aws_role_name}"
+%{ if auth_aws_header_value != "" ~}
+      header_value = "${auth_aws_header_value}"
+%{ endif ~}
+    }
+  }
+}
+
+template {
+  source      = "/etc/vault.d/templates/consul-server-tls.ctmpl"
+  destination = "/opt/consul/tls/server.crt.new"
+  perms       = "0640"
+  command     = "/usr/local/libexec/consul/consul-server-tls-reload.sh"
+}
+
+# The gossip key is only read at process start; key rotation goes through
+# `consul keyring`, so no reload command is needed.
+template {
+  source      = "/etc/vault.d/templates/consul-gossip.ctmpl"
+  destination = "/etc/consul.d/gossip.hcl"
+  perms       = "0640"
+}

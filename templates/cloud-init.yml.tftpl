@@ -1,0 +1,223 @@
+## template: jinja
+#cloud-config
+
+timezone: UTC
+
+ntp:
+  enabled: true
+  ntp_client: chrony
+
+package_update: true
+
+packages:
+  - amazon-ec2-utils
+  - awscli
+  - gnupg
+  - jq
+  - nvme-cli
+  - unzip
+
+groups:
+  - consul: []
+
+users:
+  - default
+  - name: consul
+    primary_group: consul
+    system: true
+    homedir: /opt/consul
+    shell: /bin/false
+
+write_files:
+  - path: /var/lib/cloud/scripts/bootstrap.env
+    owner: root:root
+    permissions: '0600'
+    content: |
+      ${indent(6, bootstrap_env_file)}
+
+  - path: /var/lib/cloud/scripts/common-functions.sh
+    owner: root:root
+    permissions: '0644'
+    content: |
+      ${indent(6, script_common_functions)}
+
+  - path: /var/lib/cloud/scripts/determine-consul-node-role.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      ${indent(6, script_determine_consul_node_role)}
+
+  - path: /var/lib/cloud/scripts/install-consul.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      ${indent(6, script_install_consul)}
+
+  - path: /var/lib/cloud/scripts/install-vault.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      ${indent(6, script_install_vault)}
+
+  - path: /var/lib/cloud/scripts/install-consul-enterprise-license.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      ${indent(6, script_install_consul_enterprise_license)}
+
+  - path: /var/lib/cloud/scripts/prepare-consul-storage.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      {% raw %}${indent(6, script_prepare_consul_storage)}{% endraw +%}
+
+  - path: /var/lib/cloud/scripts/start-vault-agent.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      ${indent(6, script_start_vault_agent)}
+
+  - path: /var/lib/cloud/scripts/start-consul.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      ${indent(6, script_start_consul)}
+
+  - path: /var/lib/cloud/scripts/initialize-consul-acl.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      ${indent(6, script_initialize_consul_acl)}
+
+  - path: /var/lib/cloud/scripts/await-consul-cluster.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      ${indent(6, script_await_consul_cluster)}
+
+  - path: /var/lib/cloud/scripts/configure-consul-acl-tokens.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      ${indent(6, script_configure_consul_acl_tokens)}
+
+  - path: /var/lib/cloud/scripts/configure-snapshots.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      ${indent(6, script_configure_snapshots)}
+
+  - path: /etc/profile.d/99-consul-cli-config.sh
+    owner: root:root
+    permissions: '0644'
+    content: |
+      ${indent(6, config_consul_cli)}
+
+  - path: /etc/vault.d/vault-ca.pem
+    owner: root:root
+    permissions: '0644'
+    content: |
+      ${indent(6, external_vault_ca_chain_pem)}
+
+  - path: /etc/consul.d/consul.hcl
+    owner: consul:consul
+    permissions: '0640'
+    defer: true
+    content: |
+      ${indent(6, config_consul_hcl)}
+
+  - path: /etc/consul-snapshot.d/snapshot.json
+    owner: consul:consul
+    permissions: '0640'
+    defer: true
+    content: |
+      ${indent(6, config_consul_snapshot_json)}
+
+  - path: /etc/consul.d/policies/consul-agent.hcl
+    owner: consul:consul
+    permissions: '0640'
+    defer: true
+    content: |
+      ${indent(6, config_consul_agent_policy)}
+
+  - path: /etc/consul.d/policies/consul-snapshot-agent.hcl
+    owner: consul:consul
+    permissions: '0640'
+    defer: true
+    content: |
+      ${indent(6, config_consul_snapshot_agent_policy)}
+
+  - path: /etc/vault.d/agent.hcl
+    owner: consul:consul
+    permissions: '0644'
+    defer: true
+    content: |
+      ${indent(6, config_vault_agent_hcl)}
+
+  - path: /etc/vault.d/templates/consul-server-tls.ctmpl
+    owner: consul:consul
+    permissions: '0644'
+    defer: true
+    content: |
+      {% raw %}${indent(6, config_vault_agent_consul_server_tls_ctmpl)}{% endraw +%}
+
+  - path: /etc/vault.d/templates/consul-gossip.ctmpl
+    owner: consul:consul
+    permissions: '0644'
+    defer: true
+    content: |
+      {% raw %}${indent(6, config_vault_agent_consul_gossip_ctmpl)}{% endraw +%}
+
+  - path: /etc/systemd/system/consul.service
+    owner: root:root
+    permissions: '0644'
+    content: |
+      ${indent(6, config_consul_service)}
+
+  - path: /etc/systemd/system/consul-snapshot-agent.service
+    owner: root:root
+    permissions: '0644'
+    content: |
+      ${indent(6, config_consul_snapshot_agent_service)}
+
+  - path: /etc/systemd/system/vault-agent.service
+    owner: root:root
+    permissions: '0644'
+    content: |
+      ${indent(6, config_vault_agent_service)}
+
+  - path: /etc/polkit-1/rules.d/10-vault-agent-reload.rules
+    owner: root:root
+    permissions: '0644'
+    content: |
+      ${indent(6, config_vault_agent_reload_rules)}
+
+  - path: /usr/local/libexec/consul/consul-server-tls-reload.sh
+    owner: root:root
+    permissions: '0755'
+    content: |
+      ${indent(6, config_vault_agent_reload_consul_server_tls)}
+
+
+runcmd:
+  - [install, -d, -o, consul, -g, consul, -m, '755', /opt/consul]
+  - [install, -d, -o, consul, -g, consul, -m, '755', /opt/consul/tls]
+  - [install, -d, -o, consul, -g, consul, -m, '755', /var/opt/consul]
+  # Group-writable so the Vault Agent (running as consul) can render gossip.hcl.
+  - [install, -d, -o, root, -g, consul, -m, '775', /etc/consul.d]
+  - [install, -d, -o, consul, -g, consul, -m, '755', /etc/consul.d/policies]
+  - [install, -d, -o, root, -g, consul, -m, '755', /etc/consul-snapshot.d]
+  - [install, -d, -o, root, -g, root, -m, '755', /usr/local/libexec/consul]
+  - [install, -d, -o, root, -g, consul, -m, '755', /etc/vault.d]
+  - [install, -d, -o, consul, -g, consul, -m, '755', /etc/vault.d/templates]
+  - [/var/lib/cloud/scripts/determine-consul-node-role.sh]
+  - [/var/lib/cloud/scripts/install-consul.sh]
+  - [/var/lib/cloud/scripts/install-vault.sh]
+  - [/var/lib/cloud/scripts/install-consul-enterprise-license.sh]
+  - [/var/lib/cloud/scripts/prepare-consul-storage.sh]
+  - [/var/lib/cloud/scripts/start-vault-agent.sh]
+  - [/var/lib/cloud/scripts/start-consul.sh]
+  - [/var/lib/cloud/scripts/initialize-consul-acl.sh]
+  - [/var/lib/cloud/scripts/await-consul-cluster.sh]
+  - [/var/lib/cloud/scripts/configure-consul-acl-tokens.sh]
+  - [/var/lib/cloud/scripts/configure-snapshots.sh]

@@ -1,16 +1,21 @@
-output "vpc_id" {
-  description = "VPC ID (created or existing)."
-  value       = local.vpc.id
-}
-
 output "consul_url" {
-  description = "URL of the Consul cluster."
-  value       = "https://${local.consul_fqdn}"
+  description = "URL of the Consul Enterprise cluster."
+  value       = "https://${var.consul_fqdn}"
 }
 
 output "consul_version" {
   description = "Consul Enterprise version deployed."
-  value       = var.consul_version
+  value       = var.consul.version
+}
+
+output "consul_datacenter" {
+  description = "Consul datacenter name."
+  value       = var.consul.datacenter
+}
+
+output "iam_role_arn" {
+  description = "ARN of the Consul server IAM role. Bind this to the external Vault AWS auth role so the Vault Agents can authenticate."
+  value       = aws_iam_role.consul_enterprise.arn
 }
 
 output "bastion_public_ip" {
@@ -18,67 +23,47 @@ output "bastion_public_ip" {
   value       = aws_instance.bastion.public_ip
 }
 
-output "consul_asg_name" {
-  description = "Name of the Consul Auto Scaling Group."
-  value       = aws_autoscaling_group.consul.name
+output "nlb_dns_name" {
+  description = "AWS-assigned DNS name of the Consul NLB. Use this as the CNAME target when DNS is managed outside Route 53."
+  value       = aws_lb.consul_enterprise.dns_name
 }
 
-output "consul_snapshots_bucket" {
-  description = "S3 bucket for Consul snapshots."
-  value       = aws_s3_bucket.consul_snapshots.id
+output "nlb_zone_id" {
+  description = "Hosted zone ID of the Consul NLB. Use this when creating a Route 53 alias record outside this module."
+  value       = aws_lb.consul_enterprise.zone_id
 }
 
-output "consul_target_group_arn" {
-  description = "ARN of the Consul NLB target group."
-  value       = aws_lb_target_group.consul.arn
+output "autoscaling_group_name" {
+  description = "Name of the Consul Enterprise Auto Scaling Group."
+  value       = aws_autoscaling_group.consul_enterprise.name
 }
 
-output "ec2_ami_name" {
+output "ami_name" {
   description = "Name of the AMI used for EC2 instances."
-  value       = var.ec2_ami.name
+  value       = data.aws_ami.selected.name
 }
 
-output "consul_ca" {
-  description = "Self-signed CA for trusting the Consul TLS chain."
-  value       = tls_self_signed_cert.consul_ca.cert_pem
-  sensitive   = true
+output "consul_snapshot_aws_s3_bucket_name" {
+  description = "Name of the S3 bucket for Consul Enterprise snapshots."
+  value       = aws_s3_bucket.snapshots.id
 }
 
-output "security_group" {
-  description = "Consul cluster security group."
-  value       = aws_security_group.consul
+output "acl_management_token_secret_arn" {
+  description = "Secrets Manager ARN holding the ACL management token created by `consul acl bootstrap`."
+  value       = aws_secretsmanager_secret.acl_management_token.arn
 }
 
-output "gossip_key_secret" {
-  description = "Secrets Manager secret containing the Consul gossip encryption key."
-  value       = aws_secretsmanager_secret.consul_gossip_key
+output "bootstrap_consul_cluster_state_ssm_parameter_name" {
+  description = "SSM Parameter for the bootstrap initialization state flag."
+  value       = aws_ssm_parameter.bootstrap_consul_cluster_state.name
 }
 
-output "bootstrap_token_secret" {
-  description = "Secrets Manager secret containing the Consul ACL bootstrap token."
-  value       = aws_secretsmanager_secret.consul_bootstrap_token
+output "bootstrap_instance_id_ssm_parameter_name" {
+  description = "SSM Parameter for the elected bootstrap node EC2 instance ID."
+  value       = aws_ssm_parameter.bootstrap_instance_id.name
 }
 
-output "private_subnet_ids" {
-  description = "Private subnet IDs used by the Consul cluster."
-  value       = local.vpc.private_subnet_ids
+output "bootstrap_consul_pki_ca_chain_ssm_parameter_name" {
+  description = "SSM Parameter holding the PEM CA chain that signs the Consul server certificates."
+  value       = aws_ssm_parameter.bootstrap_consul_pki_ca_chain.name
 }
-
-output "public_subnet_ids" {
-  description = "Public subnet IDs used by the Consul cluster."
-  value       = local.vpc.public_subnet_ids
-}
-
-output "consul_auto_join_ec2_tag" {
-  description = "EC2 tag key and value used for Consul auto-join."
-  value = {
-    key   = local.cluster_tag_key
-    value = local.cluster_tag_value
-  }
-}
-
-output "datacenter" {
-  description = "Consul datacenter name."
-  value       = var.consul_datacenter
-}
-

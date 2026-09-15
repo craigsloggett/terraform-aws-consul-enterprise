@@ -1,0 +1,6 @@
+{{- with pkiCert "${pki_mount_path}/issue/${pki_role_name}" "common_name=${consul_fqdn}" "alt_names=server.${consul_datacenter}.consul,localhost" "ip_sans=127.0.0.1" "ttl=${pki_server_cert_ttl}" -}}
+{{ .Key | writeToFile "/opt/consul/tls/server.key.new" "consul" "consul" "0640" }}
+{{ .CAChain | join "\n" | writeToFile "/opt/consul/tls/ca.pem.new" "consul" "consul" "0644" }}
+{{ .Cert }}
+{{ range .CAChain }}{{ . }}{{ end }}
+{{- end -}}
